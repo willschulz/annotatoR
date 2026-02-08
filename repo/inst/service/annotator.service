@@ -1,0 +1,20 @@
+[Unit]
+Description=annotatoR Shiny annotation service
+After=network.target
+
+[Service]
+Type=simple
+User=wschulz
+WorkingDirectory=/home/wschulz/projects/tools/annotatoR/repo
+Environment=ANNOTATOR_DB=/home/wschulz/projects/tools/annotatoR/state/annotatoR.sqlite
+
+ExecStart=/usr/bin/Rscript -e "library(annotatoR); annotator_run_app(port = 3839L, host = '127.0.0.1')"
+
+Restart=on-failure
+RestartSec=5
+
+StandardOutput=append:/home/wschulz/projects/tools/annotatoR/state/logs/annotator.log
+StandardError=append:/home/wschulz/projects/tools/annotatoR/state/logs/annotator.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,26 @@
+Package: annotatoR
+Title: Flexible Annotation System for Human Labeling Tasks
+Version: 0.1.0
+Authors@R: person("Will", "Schulz", email = "wschulz@stanford.edu", role = c("aut", "cre"))
+Description: A Shiny-based annotation tool backed by SQLite. Provides both an
+    interactive web UI for annotators and an R API for programmatically creating
+    and managing labeling tasks from research projects.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+Imports:
+    shiny,
+    shinyjs,
+    shinyWidgets,
+    DBI,
+    RSQLite,
+    pool,
+    jsonlite,
+    dplyr,
+    dbplyr,
+    fontawesome,
+    digest,
+    htmltools
+Suggests:
+    testthat (>= 3.0.0)

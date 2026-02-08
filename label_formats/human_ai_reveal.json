@@ -1,0 +1,58 @@
+{
+  "name": "Human/AI Reveal",
+  "description": "Shows previous Human/AI annotation and its correctness. The original selection (Human/AI) will be highlighted. An icon between them shows if it was correct (check) or incorrect (X).",
+  "button_layout": {
+    "display": "flex",
+    "justifyContent": "center",
+    "alignItems": "center",
+    "gap": "20px",
+    "buttons": [
+      {
+        "backgroundColor": "#008000",
+        "color": "white",
+        "borderRadius": "50%",
+        "width": "18vw",
+        "height": "18vw",
+        "minWidth": "60px",
+        "minHeight": "60px",
+        "maxWidth": "180px",
+        "maxHeight": "180px"
+      },
+      {
+        "backgroundColor": "transparent",
+        "color": "black", 
+        "borderRadius": "0px",
+        "width": "auto",
+        "height": "auto",
+        "minWidth": "30px",
+        "minHeight": "30px",
+        "maxWidth": "50px",
+        "maxHeight": "50px",
+        "aspectRatio": "initial",
+        "boxShadow": "none !important",
+        "padding": "0px",
+        "margin": "8px 0px",
+        "border": "none",
+        "transform": "none !important",
+        "transition": "none !important",
+        "cursor": "default",
+        "pointerEvents": "none"
+      },
+      {
+        "backgroundColor": "#490080",
+        "color": "white",
+        "borderRadius": "50%",
+        "width": "18vw",
+        "height": "18vw",
+        "minWidth": "60px",
+        "minHeight": "60px",
+        "maxWidth": "180px",
+        "maxHeight": "180px"
+      }
+    ]
+  },
+  "annotation_labels": {
+    "text": ["Human", "", "AI"],
+    "icon": ["fingerprint", "question-circle", "robot"]
+  }
+} 

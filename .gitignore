@@ -1,0 +1,24 @@
+# Runtime state (DB, uploads, logs)
+state/
+
+# Append-only label exports
+exports/
+
+# Log files at any level
+*.log
+
+# Legacy files (pre-refactor)
+app.R
+*.py
+*.csv
+!repo/**
+
+# R package build artifacts
+repo/*.tar.gz
+repo/*.Rcheck/
+
+# OS / editor
+.DS_Store
+.Rhistory
+.RData
+.Rproj.user

@@ -1,0 +1,32 @@
+{
+  "name": "Relevance",
+  "description": "Is this content relevant?",
+  "button_layout": {
+    "display": "flex",
+    "justifyContent": "center",
+    "alignItems": "center",
+    "gap": "40px",
+    "buttons": [
+      {
+        "backgroundColor": "#2196F3",
+        "color": "white",
+        "borderRadius": "50%",
+        "width": "180px",
+        "height": "180px",
+        "padding": "0"
+      },
+      {
+        "backgroundColor": "#9E9E9E",
+        "color": "white",
+        "borderRadius": "50%",
+        "width": "180px",
+        "height": "180px",
+        "padding": "0"
+      }
+    ]
+  },
+  "annotation_labels": {
+    "text": ["Relevant", "Irrelevant"],
+    "icon": ["check", "times"]
+  }
+} 

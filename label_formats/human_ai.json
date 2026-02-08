@@ -1,0 +1,30 @@
+{
+  "name": "Human vs AI Classification",
+  "description": "Classify text as either human-written or AI-generated",
+  "button_layout": {
+    "display": "flex",
+    "justifyContent": "center",
+    "alignItems": "center",
+    "gap": "40px",
+    "buttons": [
+      {
+        "backgroundColor": "#4CAF50",
+        "color": "white",
+        "borderRadius": "50%",
+        "width": "200px",
+        "height": "200px"
+      },
+      {
+        "backgroundColor": "#2196F3",
+        "color": "white",
+        "borderRadius": "50%",
+        "width": "200px",
+        "height": "200px"
+      }
+    ]
+  },
+  "annotation_labels": {
+    "text": ["Human-written", "AI-generated"],
+    "icon": ["user", "robot"]
+  }
+} 
