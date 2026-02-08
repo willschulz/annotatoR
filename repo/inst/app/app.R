@@ -648,6 +648,7 @@ server <- function(input, output, session) {
         style = "text-align: center; padding: 50px;",
         h2("No Data Available"),
         p("No annotation data has been assigned to you."),
+        p(paste0("Logged in as: ", logged_in_user())),
         p("Please contact your administrator.")
       ))
     }
@@ -774,11 +775,13 @@ server <- function(input, output, session) {
 
     # ---- UI state observer -----------------------------------------------
     observeEvent(list(values$index, input$flagButton), {
-      req(values$data)
+      req(values$data, nrow(values$data) > 0, values$index <= nrow(values$data))
       updateProgressBar(session, "progress",
                         value = values$index, total = nrow(values$data))
 
-      current_labels   <- fromJSON(values$data$annotation_labels[values$index])
+      labels_json <- values$data$annotation_labels[values$index]
+      req(labels_json, !is.na(labels_json))
+      current_labels   <- fromJSON(labels_json)
       current_response <- values$data[values$index, "annotation_response"]
 
       for (i in seq_along(current_labels$text)) {
