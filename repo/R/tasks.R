@@ -48,14 +48,28 @@ annotator_create_batch <- function(df, format, annotators,
     stop("Missing required columns: ", paste(missing_cols, collapse = ", "))
   }
 
+  # Resolve and report the actual db path
+  resolved_db <- annotator_db_path(db_path)
+  message(sprintf("annotatoR: db_path resolved to: %s", resolved_db))
+  message(sprintf("annotatoR: db file exists: %s", file.exists(resolved_db)))
+  message(sprintf("annotatoR: input df has %d rows, %d unique ids", nrow(df), length(unique(df$id))))
+  message(sprintf("annotatoR: annotators = [%s]", paste(annotators, collapse = ", ")))
+  message(sprintf("annotatoR: format = '%s', on_conflict = '%s', reveal_mode = %s",
+                  format, on_conflict, reveal_mode))
+
   # Load format config
   format_config <- load_label_format(format)
   labels_json <- jsonlite::toJSON(format_config$annotation_labels, auto_unbox = TRUE)
   layout_json <- jsonlite::toJSON(format_config$button_layout, auto_unbox = TRUE)
+  message(sprintf("annotatoR: loaded format '%s' (labels: %s)", format, as.character(labels_json)))
 
   # Open connection
   con <- annotator_connect_plain(db_path)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  # Report pre-insert state
+  pre_count <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM items")$n
+  message(sprintf("annotatoR: items table has %d rows before insert", pre_count))
 
   # Ensure annotators exist
   for (a in annotators) {
@@ -66,7 +80,14 @@ annotator_create_batch <- function(df, format, annotators,
     )
   }
 
+  # Report registered users
+  users <- DBI::dbGetQuery(con, "SELECT user_id, auth_source FROM users")
+  message(sprintf("annotatoR: registered users: [%s]",
+                  paste(sprintf("%s (%s)", users$user_id, users$auth_source), collapse = ", ")))
+
   n_inserted <- 0L
+  n_skipped  <- 0L
+  n_total    <- nrow(df) * length(annotators)
 
   for (i in seq_len(nrow(df))) {
     row <- df[i, , drop = FALSE]
@@ -121,10 +142,33 @@ annotator_create_batch <- function(df, format, annotators,
         as.integer(reveal_mode)
       ))
       n_inserted <- n_inserted + res
+      if (res == 0L) n_skipped <- n_skipped + 1L
     }
   }
 
-  message(sprintf("annotatoR: inserted %d item-annotator rows (format: %s)", n_inserted, format))
+  # Report post-insert state
+  post_count <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM items")$n
+  message(sprintf("annotatoR: items table has %d rows after insert (delta: %d)",
+                  post_count, post_count - pre_count))
+  message(sprintf("annotatoR: attempted %d inserts: %d inserted, %d skipped (on_conflict='%s')",
+                  n_total, n_inserted, n_skipped, on_conflict))
+
+  if (n_skipped > 0 && on_conflict == "skip") {
+    message("annotatoR: NOTE -- skipped rows already existed (same id + instruction_hash + annotator_id).",
+            " Use on_conflict='update' to overwrite existing rows.")
+  }
+
+  # Per-annotator item counts for verification
+  for (a in annotators) {
+    a_count <- DBI::dbGetQuery(
+      con,
+      "SELECT COUNT(*) AS n, SUM(annotation_response IS NULL) AS n_pending FROM items WHERE annotator_id = ?",
+      params = list(a)
+    )
+    message(sprintf("annotatoR: annotator '%s' now has %d total items (%d pending)",
+                    a, a_count$n, a_count$n_pending))
+  }
+
   invisible(n_inserted)
 }
 
