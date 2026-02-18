@@ -153,7 +153,10 @@ get_eligible_data <- function(pool, annotator) {
     pool,
     "SELECT * FROM items
      WHERE annotator_id = ?
-     ORDER BY annotation_instruction, created_at",
+     ORDER BY
+       CASE WHEN annotation_response IS NOT NULL THEN 0 ELSE 1 END,
+       annotation_instruction,
+       created_at",
     params = list(annotator)
   )
 }
