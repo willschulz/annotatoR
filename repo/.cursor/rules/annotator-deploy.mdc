@@ -1,0 +1,97 @@
+---
+description: How to deploy and smoke-test annotatoR code changes against the live service
+globs: projects/tools/annotatoR/**
+alwaysApply: false
+---
+
+# annotatoR Deploy & Smoke Test
+
+## Critical Fact
+
+The live Shiny service loads the **installed R package**, not the repo's
+`inst/app/app.R` directly:
+
+```
+service  ──loads──▶  library(annotatoR)
+                         │
+                         └──▶  /home/wschulz/R/x86_64-pc-linux-gnu-library/4.5/annotatoR/app/app.R
+```
+
+Editing files under `projects/tools/annotatoR/repo/` has **no effect** on
+the running service until both of:
+
+1. The package is reinstalled (copies `inst/app/app.R` → installed path).
+2. `annotator.service` is restarted (R loads the package at service start
+   and keeps it in memory).
+
+## Deploy Recipe
+
+```bash
+cd ~/projects/tools/annotatoR/repo
+Rscript -e "devtools::install('.')"   # agent can run this (~2 min)
+sudo systemctl restart annotator       # agent CANNOT run — requires user sudo
+```
+
+`sudo` is password-prompted on this host; the agent must stop after the
+install step and ask the user to run the restart. Tell them the install
+mtime of `/home/wschulz/R/x86_64-pc-linux-gnu-library/4.5/annotatoR/app/app.R`
+so they can confirm the new code landed.
+
+## Verify Install (Before Asking for Restart)
+
+```bash
+Rscript -e 'p <- system.file("app/app.R", package = "annotatoR"); cat(format(file.info(p)$mtime), "\n")'
+```
+
+Grep the installed `app.R` for a distinctive string from your change to
+confirm it actually got baked in — `devtools::install` has silently
+skipped on "no change detected" in the past.
+
+## Smoke Test Without Touching Production
+
+Never point a test instance at the live DB. Copy it first:
+
+```bash
+mkdir -p /tmp/annotator_smoke/state
+cp ~/projects/tools/annotatoR/state/annotatoR.sqlite /tmp/annotator_smoke/state/
+
+ANNOTATOR_DB=/tmp/annotator_smoke/state/annotatoR.sqlite \
+  Rscript -e 'shiny::runApp("~/projects/tools/annotatoR/repo/inst/app",
+                            port = 3840L, host = "127.0.0.1",
+                            launch.browser = FALSE)'
+```
+
+- Live service listens on `127.0.0.1:3839` — **always use a different port**
+  (3840 is the convention) and confirm `ss -tlnp | grep :3839` shows the
+  prod PID is untouched before and after your test.
+- The smoke app reads `inst/app/app.R` directly, so you don't need to
+  reinstall the package to test a change — reinstall is only for deploying.
+- Use the browser MCP (`cursor-ide-browser`) to drive the UI; log in as
+  `willschulz@github` (has 19 instruction groups, ~24k pending items —
+  good coverage for progress-bar / instruction-group features).
+
+## Rollback
+
+If a deploy misbehaves:
+
+```bash
+cd ~/projects/tools/annotatoR/repo
+git checkout <only the files you changed>     # keep unrelated uncommitted work
+Rscript -e "devtools::install('.')"
+sudo systemctl restart annotator              # user runs
+```
+
+Do **not** blanket `git checkout .` — the repo often has other
+uncommitted local work (e.g. `NAMESPACE`, `R/tasks.R`) that isn't yours.
+`git status --short` before touching anything.
+
+## Paths Cheat Sheet
+
+| Role | Path |
+|---|---|
+| Repo (source of truth) | `~/projects/tools/annotatoR/repo/` |
+| Installed package | `~/R/x86_64-pc-linux-gnu-library/4.5/annotatoR/` |
+| Live SQLite DB | `~/projects/tools/annotatoR/state/annotatoR.sqlite` |
+| Service logs | `~/projects/tools/annotatoR/state/logs/annotator.log` |
+| systemd unit | `/etc/systemd/system/annotator.service` |
+| Full runbook | `~/projects/tools/annotatoR/repo/RUNBOOK.md` |
