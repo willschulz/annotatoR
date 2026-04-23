@@ -161,6 +161,53 @@ get_eligible_data <- function(pool, annotator) {
   )
 }
 
+# Find positions where consecutive pending items switch instruction group.
+# Returns a data.frame(boundary_pos, next_instruction); boundary_pos is the
+# 1-indexed position of the last item in the current group (percentage on the
+# progress bar = boundary_pos / nrow * 100). Only boundaries where BOTH
+# neighbours are still pending (annotation_response IS NA) count, so the
+# dense completed-items block does not produce spurious dividers.
+compute_instruction_boundaries <- function(df) {
+  n <- nrow(df)
+  if (is.null(df) || n < 2) {
+    return(data.frame(boundary_pos = integer(0),
+                      next_instruction = character(0),
+                      stringsAsFactors = FALSE))
+  }
+  instr   <- df$annotation_instruction
+  pending <- is.na(df$annotation_response)
+  i       <- seq_len(n - 1)
+  hit     <- pending[i] & pending[i + 1L] & (instr[i] != instr[i + 1L])
+  data.frame(
+    boundary_pos     = i[hit],
+    next_instruction = instr[i + 1L][hit],
+    stringsAsFactors = FALSE
+  )
+}
+
+# For the current index, return the active instruction and how many pending
+# items remain in its contiguous pending run (forward + backward from idx).
+current_group_status <- function(df, idx) {
+  n <- nrow(df)
+  if (is.null(df) || n == 0 || idx < 1 || idx > n) {
+    return(list(current_instruction = NA_character_, n_remaining_in_group = 0L))
+  }
+  instr        <- df$annotation_instruction
+  pending      <- is.na(df$annotation_response)
+  current_inst <- instr[idx]
+
+  # Walk back while same instruction (do not require pending for the walk,
+  # because the user may be on an already-annotated item within a group).
+  lo <- idx
+  while (lo > 1L && identical(instr[lo - 1L], current_inst)) lo <- lo - 1L
+  hi <- idx
+  while (hi < n  && identical(instr[hi + 1L], current_inst)) hi <- hi + 1L
+
+  remaining <- sum(pending[lo:hi])
+  list(current_instruction  = current_inst,
+       n_remaining_in_group = as.integer(remaining))
+}
+
 record_event <- function(pool, item_id, instr_hash, annotator_id,
                          field, old_value, new_value) {
   dbExecute(
@@ -363,6 +410,36 @@ ui <- fluidPage(
       }
       .progress-bar {
         background-color: #453700;
+      }
+      .progress-wrapper {
+        position: relative;
+      }
+      .progress-dividers {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+      }
+      .progress-divider {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background-color: rgba(255, 255, 255, 0.85);
+        box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+      }
+      .progress-group-badge {
+        position: absolute;
+        top: -1.6em;
+        transform: translateX(-50%);
+        font-size: 0.8em;
+        padding: 1px 6px;
+        border-radius: 8px;
+        background-color: #453700;
+        color: #fff;
+        white-space: nowrap;
       }
       #progress_group {
         margin-top: auto;
@@ -703,7 +780,10 @@ server <- function(input, output, session) {
                   actionButton("flagButton", "Flag", icon = icon("flag"), width = "10%"),
                   actionButton("nextButton", ">")
               ),
-              progressBar(id = "progress", display_pct = TRUE, value = 0, total = 100)
+              div(class = "progress-wrapper",
+                  progressBar(id = "progress", display_pct = TRUE, value = 0, total = 100),
+                  uiOutput("progress_dividers", class = "progress-dividers")
+              )
           )
       )
     )
@@ -746,6 +826,50 @@ server <- function(input, output, session) {
     output$displayInstruction <- renderText({
       req(values$data)
       values$data$annotation_instruction[values$index]
+    })
+
+    # Dividers + current-group badge overlaid on the progress bar.
+    # Reacts to values$index and values$data changes; dividers are only drawn
+    # for instruction-group boundaries strictly ahead of the current index,
+    # so the still-to-do portion of the bar is what gets subdivided.
+    output$progress_dividers <- renderUI({
+      req(values$data, nrow(values$data) > 0)
+      total <- nrow(values$data)
+      idx   <- values$index
+      bnds  <- compute_instruction_boundaries(values$data)
+      if (nrow(bnds) > 0) {
+        bnds <- bnds[bnds$boundary_pos > idx, , drop = FALSE]
+      }
+
+      grp <- current_group_status(values$data, idx)
+
+      badge_pos_pct <- if (nrow(bnds) > 0) {
+        bnds$boundary_pos[1] / total * 100
+      } else {
+        100
+      }
+
+      divider_tags <- if (nrow(bnds) > 0) {
+        lapply(bnds$boundary_pos, function(p) {
+          div(class = "progress-divider",
+              style = sprintf("left: %.3f%%;", p / total * 100))
+        })
+      } else {
+        list()
+      }
+
+      badge_tag <- if (!is.null(grp$n_remaining_in_group) &&
+                      grp$n_remaining_in_group > 0) {
+        div(class = "progress-group-badge",
+            title = if (!is.na(grp$current_instruction))
+                      grp$current_instruction else "",
+            style = sprintf("left: %.3f%%;", badge_pos_pct),
+            sprintf("%d left", grp$n_remaining_in_group))
+      } else {
+        NULL
+      }
+
+      tagList(divider_tags, badge_tag)
     })
 
     # Render annotation buttons

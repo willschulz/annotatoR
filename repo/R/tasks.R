@@ -204,3 +204,145 @@ load_label_format <- function(name) {
   stop("Label format '", name, "' not found. Searched:\n  ",
        paste(c(pkg_path, dev_paths), collapse = "\n  "))
 }
+
+# ---------------------------------------------------------------------------
+# Removal of unlabeled items
+# ---------------------------------------------------------------------------
+
+#' Remove unlabeled items from the annotatoR database
+#'
+#' Deletes items that have no annotation response (i.e. have not been labeled).
+#' Labeled items are **never** touched. Associated `label_events` rows for
+#' deleted items are also removed.
+#'
+#' @param annotators Character vector of annotator emails to scope the removal.
+#'   Required -- there is no default to prevent accidental bulk deletion.
+#' @param instruction_hash Optional character vector of instruction hashes.
+#'   When supplied, only unlabeled items matching these hashes are removed.
+#'   `NULL` (default) means all instruction hashes for the given annotators.
+#' @param item_ids Optional character vector of item IDs. When supplied, only
+#'   unlabeled items with these IDs are removed. `NULL` (default) means all
+#'   IDs matching the other filters.
+#' @param db_path Path to the SQLite file (default: auto-resolved).
+#' @param dry_run Logical. If `TRUE` (the default), only reports what *would*
+#'   be deleted without modifying the database. Set to `FALSE` to actually
+#'   delete.
+#' @return Invisibly, a list with `n_items_removed` and `n_events_removed`.
+#' @export
+annotator_remove_unlabeled <- function(annotators,
+                                        instruction_hash = NULL,
+                                        item_ids = NULL,
+                                        db_path = NULL,
+                                        dry_run = TRUE) {
+  stopifnot(is.character(annotators), length(annotators) >= 1)
+
+  resolved_db <- annotator_db_path(db_path)
+  message(sprintf("annotatoR: db_path resolved to: %s", resolved_db))
+
+  con <- annotator_connect_plain(db_path)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  # ---- Build the WHERE clause ------------------------------------------------
+  where_parts <- c(
+    "annotation_response IS NULL",
+    sprintf("annotator_id IN (%s)",
+            paste(rep("?", length(annotators)), collapse = ", "))
+  )
+  params <- as.list(annotators)
+
+  if (!is.null(instruction_hash)) {
+    where_parts <- c(where_parts, sprintf(
+      "instruction_hash IN (%s)",
+      paste(rep("?", length(instruction_hash)), collapse = ", ")
+    ))
+    params <- c(params, as.list(instruction_hash))
+  }
+
+  if (!is.null(item_ids)) {
+    where_parts <- c(where_parts, sprintf(
+      "id IN (%s)",
+      paste(rep("?", length(item_ids)), collapse = ", ")
+    ))
+    params <- c(params, as.list(item_ids))
+  }
+
+  where_clause <- paste(where_parts, collapse = " AND ")
+
+  # ---- Count what will be affected -------------------------------------------
+  count_sql <- sprintf("SELECT COUNT(*) AS n FROM items WHERE %s", where_clause)
+  n_items <- DBI::dbGetQuery(con, count_sql, params = params)$n
+
+  events_sql <- sprintf(
+    "SELECT COUNT(*) AS n FROM label_events WHERE item_id IN (SELECT id FROM items WHERE %s)
+     AND annotator_id IN (%s)",
+    where_clause,
+    paste(rep("?", length(annotators)), collapse = ", ")
+  )
+  n_events <- DBI::dbGetQuery(con, events_sql, params = c(params, as.list(annotators)))$n
+
+  # Safety: count labeled items that would NOT be touched
+  labeled_sql <- sprintf(
+    "SELECT COUNT(*) AS n FROM items WHERE annotator_id IN (%s) AND annotation_response IS NOT NULL",
+    paste(rep("?", length(annotators)), collapse = ", ")
+  )
+  n_labeled <- DBI::dbGetQuery(con, labeled_sql, params = as.list(annotators))$n
+
+  # Per-instruction-hash breakdown
+  breakdown_sql <- sprintf(
+    "SELECT instruction_hash, COUNT(*) AS n FROM items WHERE %s GROUP BY instruction_hash ORDER BY n DESC",
+    where_clause
+  )
+  breakdown <- DBI::dbGetQuery(con, breakdown_sql, params = params)
+
+  mode_label <- if (dry_run) "DRY RUN" else "EXECUTING"
+  message(sprintf("\nannotatoR [%s]: remove_unlabeled for annotator(s): %s",
+                  mode_label, paste(annotators, collapse = ", ")))
+  message(sprintf("  Unlabeled items to remove: %d", n_items))
+  message(sprintf("  Associated label_events:   %d", n_events))
+  message(sprintf("  Labeled items (untouched):  %d", n_labeled))
+  if (nrow(breakdown) > 0) {
+    message("  Breakdown by instruction_hash:")
+    for (i in seq_len(nrow(breakdown))) {
+      message(sprintf("    %s: %d", breakdown$instruction_hash[i], breakdown$n[i]))
+    }
+  }
+
+  if (dry_run) {
+    message("\nannotatoR: DRY RUN complete. Set dry_run = FALSE to delete.")
+    return(invisible(list(n_items_removed = 0L, n_events_removed = 0L)))
+  }
+
+  # ---- Delete (events first, then items) ------------------------------------
+  delete_events_sql <- sprintf(
+    "DELETE FROM label_events WHERE item_id IN (SELECT id FROM items WHERE %s)
+     AND annotator_id IN (%s)",
+    where_clause,
+    paste(rep("?", length(annotators)), collapse = ", ")
+  )
+  n_events_deleted <- DBI::dbExecute(con, delete_events_sql,
+                                      params = c(params, as.list(annotators)))
+
+  delete_items_sql <- sprintf("DELETE FROM items WHERE %s", where_clause)
+  n_items_deleted <- DBI::dbExecute(con, delete_items_sql, params = params)
+
+  # ---- Verify ----------------------------------------------------------------
+  remaining <- DBI::dbGetQuery(
+    con,
+    sprintf(
+      "SELECT COUNT(*) AS total,
+              SUM(CASE WHEN annotation_response IS NOT NULL THEN 1 ELSE 0 END) AS labeled,
+              SUM(CASE WHEN annotation_response IS NULL     THEN 1 ELSE 0 END) AS unlabeled
+       FROM items WHERE annotator_id IN (%s)",
+      paste(rep("?", length(annotators)), collapse = ", ")
+    ),
+    params = as.list(annotators)
+  )
+
+  message(sprintf("\nannotatoR: Deleted %d items and %d label_events.",
+                  n_items_deleted, n_events_deleted))
+  message(sprintf("  Remaining: %d total (%d labeled, %d unlabeled)",
+                  remaining$total, remaining$labeled, remaining$unlabeled))
+
+  invisible(list(n_items_removed = n_items_deleted,
+                 n_events_removed = n_events_deleted))
+}
