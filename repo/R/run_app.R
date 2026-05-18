@@ -19,6 +19,7 @@ annotator_run_app <- function(db_path = NULL,
                                host = "127.0.0.1",
                                cookie_secret_path = NULL,
                                launch.browser = FALSE) {
+  message("annotatoR: starting [centralization-smoke-test-260518]")
   db_path <- annotator_db_path(db_path)
 
   # Resolve cookie secret
