@@ -415,6 +415,9 @@ ui <- fluidPage(
         font-size: 1em;
         min-width: unset;
       }
+      #flagButton i {
+        font-size: 1.8em;
+      }
       #flagButton.flagged {
         box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #fcba03;
       }
@@ -810,7 +813,8 @@ server <- function(input, output, session) {
           div(id = "progress_group",
               div(style = "display: flex; justify-content: space-between; margin-bottom: 10px;",
                   actionButton("backButton", "<"),
-                  actionButton("flagButton", "Flag", icon = icon("flag"), width = "10%"),
+                  actionButton("flagButton", label = NULL, icon = icon("flag"),
+                               title = "Flag", width = "10%"),
                   actionButton("nextButton", ">")
               ),
               div(class = "progress-wrapper",
