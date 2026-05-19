@@ -548,26 +548,28 @@ ui <- fluidPage(
     ", COOKIE_NAME))),
 
     tags$script(HTML("
-      Shiny.addCustomMessageHandler('copyToClipboard', function(msg) {
-        var tmp = document.createElement('div');
-        tmp.innerHTML = msg.html;
-        var text = tmp.innerText || tmp.textContent || '';
+      $(document).on('click', '#copyButton', function(e) {
+        // Read text directly from the DOM -- no server round-trip, so the
+        // user-gesture context is preserved for navigator.clipboard.writeText().
+        var snippet = document.getElementById('snippet');
+        var text = snippet ? (snippet.innerText || snippet.textContent || '') : '';
         // #region agent log
-        fetch('http://127.0.0.1:7752/ingest/284603e8-f585-46dd-a44c-ec7244a65853',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eba2fe'},body:JSON.stringify({sessionId:'eba2fe',hypothesisId:'H-C',location:'app.R:copyToClipboard-handler',message:'handler fired',data:{htmlLen:(msg.html||'').length,textLen:text.trim().length,textSnippet:text.trim().slice(0,80),isSecureContext:window.isSecureContext,clipboardAvailable:!!(navigator&&navigator.clipboard)},timestamp:Date.now()})}).catch(function(){});
+        console.log('[eba2fe][H-A fix] copyButton clicked; textLen=' + text.trim().length + ' isSecureContext=' + window.isSecureContext);
         // #endregion
         navigator.clipboard.writeText(text.trim()).then(function() {
           // #region agent log
-          fetch('http://127.0.0.1:7752/ingest/284603e8-f585-46dd-a44c-ec7244a65853',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eba2fe'},body:JSON.stringify({sessionId:'eba2fe',hypothesisId:'H-A',location:'app.R:clipboard.then',message:'clipboard write SUCCEEDED',data:{textLen:text.trim().length},timestamp:Date.now()})}).catch(function(){});
+          console.log('[eba2fe][H-A fix] clipboard write SUCCEEDED');
           // #endregion
           var btn = document.getElementById('copyButton');
           if (btn) {
-            var orig = btn.innerText;
-            btn.innerText = 'Copied!';
-            setTimeout(function() { btn.innerText = orig; }, 1500);
+            var label = btn.querySelector('span') || btn;
+            var orig = label.innerText;
+            label.innerText = 'Copied!';
+            setTimeout(function() { label.innerText = orig; }, 1500);
           }
         }).catch(function(err) {
           // #region agent log
-          fetch('http://127.0.0.1:7752/ingest/284603e8-f585-46dd-a44c-ec7244a65853',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eba2fe'},body:JSON.stringify({sessionId:'eba2fe',hypothesisId:'H-A',location:'app.R:clipboard.catch',message:'clipboard write FAILED',data:{error:String(err),isSecureContext:window.isSecureContext},timestamp:Date.now()})}).catch(function(){});
+          console.error('[eba2fe][H-A fix] clipboard write FAILED: ' + String(err));
           // #endregion
         });
       });
@@ -861,18 +863,6 @@ server <- function(input, output, session) {
     output$displayText <- renderText({
       req(values$data)
       values$data$annotation_html[values$index]
-    })
-
-    observeEvent(input$copyButton, {
-      # #region agent log
-      message("[eba2fe][H-B] observeEvent fired hasData=", !is.null(values$data), " index=", values$index)
-      # #endregion
-      req(values$data)
-      html <- values$data$annotation_html[values$index]
-      # #region agent log
-      message("[eba2fe][H-B] sendCustomMessage called htmlLen=", nchar(html))
-      # #endregion
-      session$sendCustomMessage("copyToClipboard", list(html = html))
     })
 
     output$displayInstruction <- renderText({
