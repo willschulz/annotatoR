@@ -865,12 +865,12 @@ server <- function(input, output, session) {
 
     observeEvent(input$copyButton, {
       # #region agent log
-      cat(jsonlite::toJSON(list(sessionId="eba2fe",hypothesisId="H-B",location="app.R:observeEvent-copyButton",message="observeEvent fired",data=list(hasData=!is.null(values$data),index=values$index),timestamp=as.numeric(Sys.time())*1000), auto_unbox=TRUE), "\n", file="/Users/wschulz/Desktop/homelab/.cursor/debug-eba2fe.log", append=TRUE)
+      message("[eba2fe][H-B] observeEvent fired hasData=", !is.null(values$data), " index=", values$index)
       # #endregion
       req(values$data)
       html <- values$data$annotation_html[values$index]
       # #region agent log
-      cat(jsonlite::toJSON(list(sessionId="eba2fe",hypothesisId="H-B",location="app.R:observeEvent-sendMsg",message="sendCustomMessage called",data=list(htmlLen=nchar(html),htmlSnippet=substr(html,1,80)),timestamp=as.numeric(Sys.time())*1000), auto_unbox=TRUE), "\n", file="/Users/wschulz/Desktop/homelab/.cursor/debug-eba2fe.log", append=TRUE)
+      message("[eba2fe][H-B] sendCustomMessage called htmlLen=", nchar(html))
       # #endregion
       session$sendCustomMessage("copyToClipboard", list(html = html))
     })
