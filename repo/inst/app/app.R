@@ -553,25 +553,16 @@ ui <- fluidPage(
         // user-gesture context is preserved for navigator.clipboard.writeText().
         var snippet = document.getElementById('snippet');
         var text = snippet ? (snippet.innerText || snippet.textContent || '') : '';
-        // #region agent log
-        console.log('[eba2fe][H-A fix] copyButton clicked; textLen=' + text.trim().length + ' isSecureContext=' + window.isSecureContext);
-        // #endregion
-        navigator.clipboard.writeText(text.trim()).then(function() {
-          // #region agent log
-          console.log('[eba2fe][H-A fix] clipboard write SUCCEEDED');
-          // #endregion
-          var btn = document.getElementById('copyButton');
-          if (btn) {
-            var label = btn.querySelector('span') || btn;
-            var orig = label.innerText;
-            label.innerText = 'Copied!';
-            setTimeout(function() { label.innerText = orig; }, 1500);
-          }
-        }).catch(function(err) {
-          // #region agent log
-          console.error('[eba2fe][H-A fix] clipboard write FAILED: ' + String(err));
-          // #endregion
+        navigator.clipboard.writeText(text.trim()).catch(function(err) {
+          console.error('Copy failed: ' + String(err));
         });
+        var btn = document.getElementById('copyButton');
+        if (btn) {
+          var label = btn.querySelector('span') || btn;
+          var orig = label.innerText;
+          label.innerText = 'Copied!';
+          setTimeout(function() { label.innerText = orig; }, 1500);
+        }
       });
     "))
   ),
