@@ -445,10 +445,14 @@ ui <- fluidPage(
       }
       .progress-group-badge {
         position: absolute;
-        top: -1.4em;
+        top: 0;
+        bottom: 0;
         transform: translateX(-100%);
+        display: flex;
+        align-items: center;
+        padding-right: 4px;
         font-size: 0.75em;
-        color: #453700;
+        color: #fff;
         white-space: nowrap;
       }
       #progress_group {
