@@ -426,13 +426,12 @@ ui <- fluidPage(
       }
       .progress-wrapper {
         position: relative;
-        padding-bottom: 1.8em;
       }
       .progress-dividers {
         position: absolute;
         left: 0;
         right: 0;
-        bottom: 1.8em;
+        bottom: 0;
         height: 20px;
         pointer-events: none;
       }
@@ -444,30 +443,13 @@ ui <- fluidPage(
         border-left: 1px solid #888;
         transform: translateX(-50%);
       }
-      .progress-badge-layer {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 1.8em;
-        pointer-events: none;
-      }
       .progress-group-badge {
         position: absolute;
-        top: 0.25em;
-        transform: translateX(-50%);
-        font-size: 0.8em;
-        padding: 1px 6px;
-        border-radius: 8px;
-        background-color: #453700;
-        color: #fff;
-        white-space: nowrap;
-      }
-      .progress-group-badge.align-end {
+        top: -1.4em;
         transform: translateX(-100%);
-      }
-      .progress-group-badge.align-start {
-        transform: none;
+        font-size: 0.75em;
+        color: #453700;
+        white-space: nowrap;
       }
       #progress_group {
         margin-top: auto;
@@ -834,8 +816,7 @@ server <- function(input, output, session) {
               ),
               div(class = "progress-wrapper",
                   progressBar(id = "progress", display_pct = TRUE, value = 0, total = 100),
-                  uiOutput("progress_dividers", class = "progress-dividers"),
-                  uiOutput("progress_badge", class = "progress-badge-layer")
+                  uiOutput("progress_dividers", class = "progress-dividers")
               )
           )
       )
@@ -881,25 +862,10 @@ server <- function(input, output, session) {
       values$data$annotation_instruction[values$index]
     })
 
-    # Divider lines overlaid on the progress bar — one per instruction-group
-    # boundary strictly ahead of the current index.
+    # Divider lines + "N left" label overlaid on the progress bar.
+    # Dividers mark instruction-group boundaries ahead of the current index.
+    # The label sits above the current progress edge, right-aligned to it.
     output$progress_dividers <- renderUI({
-      req(values$data, nrow(values$data) > 0)
-      total <- nrow(values$data)
-      idx   <- values$index
-      bnds  <- compute_instruction_boundaries(values$data)
-      if (nrow(bnds) > 0) {
-        bnds <- bnds[bnds$boundary_pos > idx, , drop = FALSE]
-      }
-      if (nrow(bnds) == 0) return(NULL)
-      lapply(bnds$boundary_pos, function(p) {
-        div(class = "progress-divider",
-            style = sprintf("left: %.3f%%;", p / total * 100))
-      })
-    })
-
-    # "N left" pill rendered below the bar in its own badge layer.
-    output$progress_badge <- renderUI({
       req(values$data, nrow(values$data) > 0)
       total <- nrow(values$data)
       idx   <- values$index
@@ -909,33 +875,28 @@ server <- function(input, output, session) {
       }
 
       grp <- current_group_status(values$data, idx)
-      if (is.null(grp$n_remaining_in_group) || grp$n_remaining_in_group <= 0) {
-        return(NULL)
-      }
 
-      badge_pos_pct <- if (nrow(bnds) > 0) {
-        bnds$boundary_pos[1] / total * 100
+      divider_tags <- if (nrow(bnds) > 0) {
+        lapply(bnds$boundary_pos, function(p) {
+          div(class = "progress-divider",
+              style = sprintf("left: %.3f%%;", p / total * 100))
+        })
       } else {
-        100
+        list()
       }
 
-      # Clamp horizontal alignment so the pill never overflows the bar edges.
-      if (badge_pos_pct >= 88) {
-        left_pct    <- 100
-        badge_class <- "progress-group-badge align-end"
-      } else if (badge_pos_pct <= 12) {
-        left_pct    <- 0
-        badge_class <- "progress-group-badge align-start"
+      badge_tag <- if (!is.null(grp$n_remaining_in_group) &&
+                      grp$n_remaining_in_group > 0) {
+        div(class = "progress-group-badge",
+            title = if (!is.na(grp$current_instruction))
+                      grp$current_instruction else "",
+            style = sprintf("left: %.3f%%;", idx / total * 100),
+            sprintf("%d left", grp$n_remaining_in_group))
       } else {
-        left_pct    <- badge_pos_pct
-        badge_class <- "progress-group-badge"
+        NULL
       }
 
-      div(class = badge_class,
-          title = if (!is.na(grp$current_instruction))
-                    grp$current_instruction else "",
-          style = sprintf("left: %.3f%%;", left_pct),
-          sprintf("%d left", grp$n_remaining_in_group))
+      tagList(divider_tags, badge_tag)
     })
 
     # Render annotation buttons
