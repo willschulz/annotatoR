@@ -552,13 +552,23 @@ ui <- fluidPage(
         var tmp = document.createElement('div');
         tmp.innerHTML = msg.html;
         var text = tmp.innerText || tmp.textContent || '';
+        // #region agent log
+        fetch('http://127.0.0.1:7752/ingest/284603e8-f585-46dd-a44c-ec7244a65853',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eba2fe'},body:JSON.stringify({sessionId:'eba2fe',hypothesisId:'H-C',location:'app.R:copyToClipboard-handler',message:'handler fired',data:{htmlLen:(msg.html||'').length,textLen:text.trim().length,textSnippet:text.trim().slice(0,80),isSecureContext:window.isSecureContext,clipboardAvailable:!!(navigator&&navigator.clipboard)},timestamp:Date.now()})}).catch(function(){});
+        // #endregion
         navigator.clipboard.writeText(text.trim()).then(function() {
+          // #region agent log
+          fetch('http://127.0.0.1:7752/ingest/284603e8-f585-46dd-a44c-ec7244a65853',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eba2fe'},body:JSON.stringify({sessionId:'eba2fe',hypothesisId:'H-A',location:'app.R:clipboard.then',message:'clipboard write SUCCEEDED',data:{textLen:text.trim().length},timestamp:Date.now()})}).catch(function(){});
+          // #endregion
           var btn = document.getElementById('copyButton');
           if (btn) {
             var orig = btn.innerText;
             btn.innerText = 'Copied!';
             setTimeout(function() { btn.innerText = orig; }, 1500);
           }
+        }).catch(function(err) {
+          // #region agent log
+          fetch('http://127.0.0.1:7752/ingest/284603e8-f585-46dd-a44c-ec7244a65853',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eba2fe'},body:JSON.stringify({sessionId:'eba2fe',hypothesisId:'H-A',location:'app.R:clipboard.catch',message:'clipboard write FAILED',data:{error:String(err),isSecureContext:window.isSecureContext},timestamp:Date.now()})}).catch(function(){});
+          // #endregion
         });
       });
     "))
@@ -854,8 +864,14 @@ server <- function(input, output, session) {
     })
 
     observeEvent(input$copyButton, {
+      # #region agent log
+      cat(jsonlite::toJSON(list(sessionId="eba2fe",hypothesisId="H-B",location="app.R:observeEvent-copyButton",message="observeEvent fired",data=list(hasData=!is.null(values$data),index=values$index),timestamp=as.numeric(Sys.time())*1000), auto_unbox=TRUE), "\n", file="/Users/wschulz/Desktop/homelab/.cursor/debug-eba2fe.log", append=TRUE)
+      # #endregion
       req(values$data)
       html <- values$data$annotation_html[values$index]
+      # #region agent log
+      cat(jsonlite::toJSON(list(sessionId="eba2fe",hypothesisId="H-B",location="app.R:observeEvent-sendMsg",message="sendCustomMessage called",data=list(htmlLen=nchar(html),htmlSnippet=substr(html,1,80)),timestamp=as.numeric(Sys.time())*1000), auto_unbox=TRUE), "\n", file="/Users/wschulz/Desktop/homelab/.cursor/debug-eba2fe.log", append=TRUE)
+      # #endregion
       session$sendCustomMessage("copyToClipboard", list(html = html))
     })
 
