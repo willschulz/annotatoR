@@ -298,6 +298,16 @@ ui <- fluidPage(
         color: #4d4d4d;
         text-align: left;
       }
+      #copy_btn_container {
+        margin-top: 6px;
+        margin-bottom: 4px;
+        text-align: left;
+      }
+      .btn-copy {
+        font-size: 0.85em;
+        padding: 3px 10px;
+        opacity: 0.75;
+      }
       .container-fluid {
         padding-right: 5px;
         padding-left: 5px;
@@ -535,7 +545,23 @@ ui <- fluidPage(
           }
         });
       });
-    ", COOKIE_NAME)))
+    ", COOKIE_NAME))),
+
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('copyToClipboard', function(msg) {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = msg.html;
+        var text = tmp.innerText || tmp.textContent || '';
+        navigator.clipboard.writeText(text.trim()).then(function() {
+          var btn = document.getElementById('copyButton');
+          if (btn) {
+            var orig = btn.innerText;
+            btn.innerText = 'Copied!';
+            setTimeout(function() { btn.innerText = orig; }, 1500);
+          }
+        });
+      });
+    "))
   ),
 
   # Single reactive output switches between login and annotation views
@@ -770,6 +796,10 @@ server <- function(input, output, session) {
                                      class = "sidebar-toggle")
                     ),
                     div(id = "snippet", htmlOutput("displayText")),
+                    div(id = "copy_btn_container",
+                        actionButton("copyButton",
+                                     label = tagList(icon("copy"), "Copy text"),
+                                     class = "btn-copy")),
                     br(),
                     uiOutput("annotation_buttons"),
                     br()
@@ -821,6 +851,12 @@ server <- function(input, output, session) {
     output$displayText <- renderText({
       req(values$data)
       values$data$annotation_html[values$index]
+    })
+
+    observeEvent(input$copyButton, {
+      req(values$data)
+      html <- values$data$annotation_html[values$index]
+      session$sendCustomMessage("copyToClipboard", list(html = html))
     })
 
     output$displayInstruction <- renderText({
