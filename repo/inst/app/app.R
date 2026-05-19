@@ -267,6 +267,9 @@ get_value <- function(x, default) {
 ui <- fluidPage(
   useShinyjs(),
   tags$head(
+    tags$link(rel = "icon", type = "image/png", sizes = "32x32",  href = "favicon-32.png"),
+    tags$link(rel = "apple-touch-icon", sizes = "180x180",        href = "favicon-180.png"),
+    tags$link(rel = "icon", type = "image/png",                   href = "favicon.png"),
     tags$style(HTML("
       body {
         background-color: #dbdbdb;
