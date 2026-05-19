@@ -439,9 +439,9 @@ ui <- fluidPage(
         position: absolute;
         top: 0;
         bottom: 0;
-        width: 2px;
-        background-color: rgba(255, 255, 255, 0.85);
-        box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+        width: 0;
+        border-left: 1px solid #888;
+        transform: translateX(-50%);
       }
       .progress-group-badge {
         position: absolute;
