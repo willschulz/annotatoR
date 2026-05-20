@@ -24,6 +24,11 @@
 #' @param db_path Path to the SQLite file (default: auto-resolved).
 #' @param reveal_mode Logical. If `TRUE`, items are inserted in read-only
 #'   reveal mode (default `FALSE`).
+#' @param project Optional character scalar naming the project this batch
+#'   belongs to (e.g. `"False Polarization"`). Stored in the `project` column
+#'   on each inserted row. `NULL` (default) leaves the column as `NULL`;
+#'   the schema migration backfills pre-existing `NULL` rows to
+#'   `"False Polarization"` on first connection.
 #' @param on_conflict What to do when a row with the same PK exists:
 #'   `"skip"` (default) silently ignores duplicates, `"update"` overwrites
 #'   html/labels/layout/response/flagged fields.
@@ -31,6 +36,7 @@
 #' @export
 annotator_create_batch <- function(df, format, annotators,
                                     db_path = NULL,
+                                    project = NULL,
                                     reveal_mode = FALSE,
                                     on_conflict = c("skip", "update")) {
   on_conflict <- match.arg(on_conflict)
@@ -111,14 +117,14 @@ annotator_create_batch <- function(df, format, annotators,
         sql <- "INSERT OR IGNORE INTO items
                 (id, instruction_hash, annotator_id, annotation_instruction,
                  annotation_html, annotation_labels, button_layout,
-                 annotation_response, annotation_flagged, reveal_mode)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 annotation_response, annotation_flagged, reveal_mode, project)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       } else {
         sql <- "INSERT INTO items
                 (id, instruction_hash, annotator_id, annotation_instruction,
                  annotation_html, annotation_labels, button_layout,
-                 annotation_response, annotation_flagged, reveal_mode)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 annotation_response, annotation_flagged, reveal_mode, project)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id, instruction_hash, annotator_id) DO UPDATE SET
                   annotation_html    = excluded.annotation_html,
                   annotation_labels  = excluded.annotation_labels,
@@ -126,6 +132,7 @@ annotator_create_batch <- function(df, format, annotators,
                   annotation_response = excluded.annotation_response,
                   annotation_flagged  = excluded.annotation_flagged,
                   reveal_mode         = excluded.reveal_mode,
+                  project             = excluded.project,
                   updated_at          = strftime('%Y-%m-%dT%H:%M:%SZ','now')"
       }
 
@@ -139,7 +146,8 @@ annotator_create_batch <- function(df, format, annotators,
         as.character(layout_json),
         response,
         flagged,
-        as.integer(reveal_mode)
+        as.integer(reveal_mode),
+        if (is.null(project)) NA_character_ else as.character(project)
       ))
       n_inserted <- n_inserted + res
       if (res == 0L) n_skipped <- n_skipped + 1L

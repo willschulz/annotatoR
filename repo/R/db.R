@@ -124,6 +124,17 @@ ensure_schema <- function(con) {
     );
   ")
 
+  # Add project column if not present (migration for existing DBs).
+  # SQLite has no ALTER TABLE ADD COLUMN IF NOT EXISTS, so we suppress the
+  # "duplicate column" error.
+  tryCatch(
+    DBI::dbExecute(con, "ALTER TABLE items ADD COLUMN project TEXT"),
+    error = function(e) invisible(NULL)
+  )
+  # Backfill existing rows that pre-date the project column.
+  DBI::dbExecute(con,
+    "UPDATE items SET project = 'False Polarization' WHERE project IS NULL")
+
   invisible(NULL)
 }
 

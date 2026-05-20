@@ -144,21 +144,42 @@ local({
       created_at   TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
     );
   ")
+
+  # Add project column if not present (migration for existing DBs).
+  tryCatch(
+    dbExecute(con, "ALTER TABLE items ADD COLUMN project TEXT"),
+    error = function(e) invisible(NULL)
+  )
+  dbExecute(con,
+    "UPDATE items SET project = 'False Polarization' WHERE project IS NULL")
 })
 
 # ---- Data helpers ---------------------------------------------------------
 
-get_eligible_data <- function(pool, annotator) {
-  dbGetQuery(
-    pool,
-    "SELECT * FROM items
-     WHERE annotator_id = ?
-     ORDER BY
-       CASE WHEN annotation_response IS NOT NULL THEN 0 ELSE 1 END,
-       annotation_instruction,
-       created_at",
-    params = list(annotator)
-  )
+get_eligible_data <- function(pool, annotator, project = NULL) {
+  if (!is.null(project)) {
+    dbGetQuery(
+      pool,
+      "SELECT * FROM items
+       WHERE annotator_id = ? AND project = ?
+       ORDER BY
+         CASE WHEN annotation_response IS NOT NULL THEN 0 ELSE 1 END,
+         annotation_instruction,
+         created_at",
+      params = list(annotator, project)
+    )
+  } else {
+    dbGetQuery(
+      pool,
+      "SELECT * FROM items
+       WHERE annotator_id = ?
+       ORDER BY
+         CASE WHEN annotation_response IS NOT NULL THEN 0 ELSE 1 END,
+         annotation_instruction,
+         created_at",
+      params = list(annotator)
+    )
+  }
 }
 
 # Find positions where consecutive pending items switch instruction group.
@@ -800,6 +821,7 @@ server <- function(input, output, session) {
 
       div(class = "mainpanel-container",
           mainPanel(class = "mainpanel",
+                    uiOutput("project_selector"),
                     div(style = "position: relative;",
                         h2(htmlOutput("displayInstruction")),
                         actionButton("toggle_sidebar", "Instructions",
@@ -833,10 +855,28 @@ server <- function(input, output, session) {
   # ---- Server logic (post-login) ----------------------------------------
   observeEvent(logged_in_user(), {
     req(logged_in_user())
-    data <- get_eligible_data(pool, logged_in_user())
+
+    # Determine which projects this annotator has items in, ordered by most
+    # pending work so we can auto-select the most pressing project.
+    proj_df <- dbGetQuery(
+      pool,
+      "SELECT project,
+              SUM(CASE WHEN annotation_response IS NULL THEN 1 ELSE 0 END) AS n_pending
+       FROM items
+       WHERE annotator_id = ?
+       GROUP BY project
+       ORDER BY n_pending DESC",
+      params = list(logged_in_user())
+    )
+    projects     <- if (nrow(proj_df) > 0) proj_df$project else character(0)
+    auto_project <- if (nrow(proj_df) > 0) proj_df$project[1] else NULL
+
+    data <- get_eligible_data(pool, logged_in_user(), project = auto_project)
 
     values <- reactiveValues(
       data = data,
+      selected_project = auto_project,
+      projects = projects,
       completion_modal_shown = FALSE,
       index = if (nrow(data) > 0) {
         unannotated <- which(is.na(data$annotation_response))
@@ -845,6 +885,39 @@ server <- function(input, output, session) {
     )
 
     req(values$data)
+
+    # ---- Project selector dropdown ----------------------------------------
+    output$project_selector <- renderUI({
+      req(values$projects)
+      if (length(values$projects) <= 1) return(NULL)
+      div(
+        style = "margin-bottom: 12px;",
+        selectInput(
+          "project_filter",
+          label   = "Project:",
+          choices = values$projects,
+          selected = values$selected_project,
+          width   = "100%"
+        )
+      )
+    })
+
+    # When the user picks a different project, reload the queue and reset state.
+    observeEvent(input$project_filter, {
+      req(input$project_filter)
+      new_proj <- input$project_filter
+      if (!is.null(values$selected_project) &&
+          identical(new_proj, values$selected_project)) return()
+
+      new_data <- get_eligible_data(pool, logged_in_user(), project = new_proj)
+      values$selected_project   <- new_proj
+      values$data               <- new_data
+      values$completion_modal_shown <- FALSE
+      values$index <- if (nrow(new_data) > 0) {
+        unannotated <- which(is.na(new_data$annotation_response))
+        if (length(unannotated) > 0) min(unannotated) else 1
+      } else 1
+    }, ignoreInit = TRUE)
 
     # Show completion if everything is done on load
     if (nrow(data) > 0 &&
