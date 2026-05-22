@@ -651,7 +651,7 @@ ui <- fluidPage(
         min-width: 280px;
       }
       .placement-partner-label-row {
-        margin-top: 2rem;
+        margin-top: 2.5rem;
       }
       .placement-second-row {
         display: flex;
