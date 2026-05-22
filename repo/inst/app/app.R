@@ -672,7 +672,7 @@ ui <- fluidPage(
          Cards can expand for longer tweets but won't shrink below this. */
       .placement-anchor-section .tweet-card,
       .placement-partner-card {
-        min-height: 30rem;
+        min-height: 15rem;
       }
       /* side button wrappers – arrows appear here via ::before */
       .placement-side-wrapper {
