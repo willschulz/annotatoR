@@ -1,0 +1,33 @@
+{
+  "name": "Rhetoric Placement (Vertical)",
+  "description": "The first tweet is fixed at top. Would you place the second tweet to the left or to the right of the first on an ideological scale?",
+  "button_layout": {
+    "ui_type": "relative_vertical",
+    "display": "flex",
+    "justifyContent": "center",
+    "alignItems": "center",
+    "gap": "60px",
+    "buttons": [
+      {
+        "backgroundColor": "#3a86ff",
+        "color": "white",
+        "borderRadius": "50%",
+        "width": "160px",
+        "height": "160px",
+        "padding": "0"
+      },
+      {
+        "backgroundColor": "#ef476f",
+        "color": "white",
+        "borderRadius": "50%",
+        "width": "160px",
+        "height": "160px",
+        "padding": "0"
+      }
+    ]
+  },
+  "annotation_labels": {
+    "text": ["Left", "Right"],
+    "icon": ["arrow-left", "arrow-right"]
+  }
+}

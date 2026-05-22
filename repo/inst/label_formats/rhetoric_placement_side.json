@@ -1,0 +1,25 @@
+{
+  "name": "Rhetoric Placement (Side by Side)",
+  "description": "Arrange the two tweets on an ideological scale. Swap positions if needed, then confirm.",
+  "button_layout": {
+    "ui_type": "relative_side",
+    "display": "flex",
+    "justifyContent": "center",
+    "alignItems": "center",
+    "gap": "40px",
+    "buttons": [
+      {
+        "backgroundColor": "#2a9d8f",
+        "color": "white",
+        "borderRadius": "50%",
+        "width": "160px",
+        "height": "160px",
+        "padding": "0"
+      }
+    ]
+  },
+  "annotation_labels": {
+    "text": ["Confirm"],
+    "icon": ["check"]
+  }
+}

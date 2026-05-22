@@ -281,6 +281,18 @@ get_value <- function(x, default) {
   if (is.null(x) || length(x) == 0) default else x
 }
 
+# ---- Pair metadata extractor for relative_side format --------------------
+# annotation_html for this format embeds:
+#   <script type="application/json" id="pair-meta">{...}</script>
+extract_pair_meta <- function(html) {
+  if (!grepl('id="pair-meta"', html, fixed = TRUE)) return(NULL)
+  m <- regmatches(html,
+    regexpr('(?s)<script[^>]*id="pair-meta"[^>]*>(.*?)</script>', html, perl = TRUE))
+  if (length(m) == 0 || !nzchar(m)) return(NULL)
+  json_str <- sub('(?s)<script[^>]*id="pair-meta"[^>]*>(.*?)</script>', "\\1", m, perl = TRUE)
+  tryCatch(jsonlite::fromJSON(json_str), error = function(e) NULL)
+}
+
 # =========================================================================
 # UI
 # =========================================================================
@@ -529,6 +541,93 @@ ui <- fluidPage(
         border-radius: 3px;
         font-family: monospace;
         margin: 0 2px;
+      }
+      /* ---- tweet pair formats ------------------------------------------ */
+      .tweet-card {
+        background: #ffffff;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 14px 16px;
+        font-size: 1.05em;
+        line-height: 1.5;
+      }
+      .tweet-date {
+        color: #999;
+        font-size: 0.78em;
+        margin-top: 8px;
+      }
+      .tweet-pair-vertical {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 8px 0;
+      }
+      .pair-separator {
+        text-align: center;
+        color: #999;
+        font-size: 0.85em;
+        letter-spacing: 0.05em;
+      }
+      .tweet-pair-side {
+        display: flex;
+        gap: 12px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .tweet-slot {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .tweet-slot-label {
+        font-weight: bold;
+        text-align: center;
+        padding: 6px 8px;
+        border-radius: 6px 6px 0 0;
+        color: white;
+        font-size: 0.9em;
+        letter-spacing: 0.03em;
+      }
+      .tweet-slot-label.left-label  { background: #3a86ff; }
+      .tweet-slot-label.right-label { background: #ef476f; }
+      .tweet-slot .tweet-card {
+        border-radius: 0 0 8px 8px;
+        flex: 1;
+      }
+      .placement-controls {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 14px;
+      }
+      .swap-btn {
+        background: #6c757d;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 28px;
+        font-size: 1.1em;
+        cursor: pointer;
+      }
+      .swap-btn:hover { background: #5a6268; }
+      .confirm-btn {
+        background: #2a9d8f;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 28px;
+        font-size: 1.1em;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      .confirm-btn:hover { background: #21867a; }
+      .confirm-btn.confirmed {
+        box-shadow: 0 0 0 4px #dbdbdb, 0 0 0 7px #2a9d8f;
+      }
+      @media (max-width: 600px) {
+        .tweet-pair-side { flex-direction: column; }
+        .tweet-slot-label { border-radius: 6px 6px 0 0; }
       }
     ")),
 
@@ -878,6 +977,7 @@ server <- function(input, output, session) {
       selected_project = auto_project,
       projects = projects,
       completion_modal_shown = FALSE,
+      side_order = "anchor",  # "anchor" = anchor on left; "partner" = partner on left
       index = if (nrow(data) > 0) {
         unannotated <- which(is.na(data$annotation_response))
         if (length(unannotated) > 0) min(unannotated) else 1
@@ -932,14 +1032,14 @@ server <- function(input, output, session) {
       ))
     }
 
-    output$displayText <- renderText({
+    output$displayText <- renderUI({
       req(values$data)
-      values$data$annotation_html[values$index]
+      HTML(values$data$annotation_html[values$index])
     })
 
-    output$displayInstruction <- renderText({
+    output$displayInstruction <- renderUI({
       req(values$data)
-      values$data$annotation_instruction[values$index]
+      HTML(values$data$annotation_instruction[values$index])
     })
 
     # Divider lines + "N left" label overlaid on the progress bar.
@@ -979,27 +1079,82 @@ server <- function(input, output, session) {
       tagList(divider_tags, badge_tag)
     })
 
-    # Render annotation buttons
+    # Render annotation buttons (and full side-by-side layout for relative_side)
     output$annotation_buttons <- renderUI({
       req(values$data)
       current <- values$data[values$index, ]
       tryCatch({
         layout <- fromJSON(current$button_layout)
         labels <- fromJSON(current$annotation_labels)
-        div(
-          style = sprintf(
-            "display:%s; justify-content:%s; align-items:%s; gap:%s;",
-            get_value(layout$display, "flex"),
-            get_value(layout$justifyContent, "center"),
-            get_value(layout$alignItems, "center"),
-            get_value(layout$gap, "40px")
-          ),
-          create_annotation_buttons(
-            layout, labels,
-            current$annotation_response,
-            as.logical(current$reveal_mode)
+        ui_type <- get_value(layout$ui_type, "buttons")
+
+        if (ui_type == "relative_side") {
+          meta <- extract_pair_meta(current$annotation_html)
+          if (is.null(meta)) {
+            return(div(style = "color:red; padding:20px;",
+                       p("Error: pair metadata not found in annotation_html.")))
+          }
+
+          left_is    <- values$side_order  # "anchor" or "partner"
+          left_text  <- if (left_is == "anchor") meta$anchor_text  else meta$partner_text
+          right_text <- if (left_is == "anchor") meta$partner_text else meta$anchor_text
+          left_date  <- if (left_is == "anchor") meta$anchor_date  else meta$partner_date
+          right_date <- if (left_is == "anchor") meta$partner_date else meta$anchor_date
+
+          is_confirmed <- !is.na(current$annotation_response) &&
+                          grepl("^left:", current$annotation_response)
+          reveal <- isTRUE(as.logical(current$reveal_mode))
+
+          tagList(
+            div(class = "tweet-pair-side",
+              div(class = "tweet-slot",
+                div(class = "tweet-slot-label left-label", "\u25c4 Left"),
+                div(class = "tweet-card",
+                    p(left_text),
+                    div(class = "tweet-date", left_date))
+              ),
+              div(class = "tweet-slot",
+                div(class = "tweet-slot-label right-label", "Right \u25ba"),
+                div(class = "tweet-card",
+                    p(right_text),
+                    div(class = "tweet-date", right_date))
+              )
+            ),
+            div(class = "placement-controls",
+              if (reveal) {
+                div(style = "color:#888; font-style:italic; padding:10px;",
+                    if (is_confirmed) paste("Saved:", current$annotation_response)
+                    else "View mode")
+              } else {
+                tagList(
+                  actionButton("swapButton",
+                               tagList(icon("right-left"), " Swap"),
+                               class = "swap-btn btn"),
+                  actionButton("confirmPlacement",
+                               tagList(icon("check"), " Confirm"),
+                               class = paste("confirm-btn btn",
+                                             if (is_confirmed) "confirmed" else ""))
+                )
+              }
+            )
           )
-        )
+
+        } else {
+          div(
+            style = sprintf(
+              "display:%s; justify-content:%s; align-items:%s; gap:%s;",
+              get_value(layout$display, "flex"),
+              get_value(layout$justifyContent, "center"),
+              get_value(layout$alignItems, "center"),
+              get_value(layout$gap, "40px")
+            ),
+            create_annotation_buttons(
+              layout, labels,
+              current$annotation_response,
+              as.logical(current$reveal_mode)
+            )
+          )
+        }
       }, error = function(e) {
         div(style = "color:red; padding:20px;",
             p("Error loading annotation interface."),
@@ -1012,6 +1167,30 @@ server <- function(input, output, session) {
       req(values$data, nrow(values$data) > 0, values$index <= nrow(values$data))
       updateProgressBar(session, "progress",
                         value = values$index, total = nrow(values$data))
+
+      current       <- values$data[values$index, ]
+      layout_parsed <- tryCatch(fromJSON(current$button_layout), error = function(e) list())
+      ui_type       <- get_value(layout_parsed$ui_type, "buttons")
+
+      # For relative_side: hide the standard snippet area (the two-column layout
+      # is rendered entirely inside annotation_buttons) and initialize side_order.
+      if (ui_type == "relative_side") {
+        shinyjs::hide("snippet")
+        shinyjs::hide("copy_btn_container")
+        meta <- extract_pair_meta(current$annotation_html)
+        if (!is.null(meta)) {
+          resp <- current$annotation_response
+          values$side_order <- if (!is.na(resp) && grepl("^left:", resp)) {
+            left_bio <- sub("^left:([^|]+)\\|.*", "\\1", resp)
+            if (left_bio == meta$anchor_bio) "anchor" else "partner"
+          } else {
+            meta$initial_left
+          }
+        }
+      } else {
+        shinyjs::show("snippet")
+        shinyjs::show("copy_btn_container")
+      }
 
       labels_json <- values$data$annotation_labels[values$index]
       req(labels_json, !is.na(labels_json))
@@ -1085,6 +1264,52 @@ server <- function(input, output, session) {
     observeEvent(input$btn_3, handle_annotation(3))
     observeEvent(input$btn_4, handle_annotation(4))
 
+    # ---- Relative-side: swap handler -------------------------------------
+    observeEvent(input$swapButton, {
+      if (values$index > nrow(values$data)) return()
+      rm_val <- as.logical(values$data[values$index, "reveal_mode"])
+      if (!is.na(rm_val) && rm_val) return()
+      values$side_order <- if (values$side_order == "anchor") "partner" else "anchor"
+    })
+
+    # ---- Relative-side: confirm handler ----------------------------------
+    observeEvent(input$confirmPlacement, {
+      if (values$index > nrow(values$data)) return()
+      current <- values$data[values$index, ]
+      rm_val <- as.logical(current$reveal_mode)
+      if (!is.na(rm_val) && rm_val) return()
+
+      meta <- extract_pair_meta(current$annotation_html)
+      if (is.null(meta)) return()
+
+      left_bio  <- if (values$side_order == "anchor") meta$anchor_bio else meta$partner_bio
+      right_bio <- if (values$side_order == "anchor") meta$partner_bio else meta$anchor_bio
+      response  <- sprintf("left:%s|right:%s", left_bio, right_bio)
+
+      values$data[values$index, "annotation_response"] <- response
+      update_item(pool,
+                  id               = current$id,
+                  instruction_hash = current$instruction_hash,
+                  annotator_id     = current$annotator_id,
+                  field            = "annotation_response",
+                  new_value        = response)
+
+      if (values$index < nrow(values$data)) {
+        values$index <- values$index + 1
+      }
+
+      if (all(!is.na(values$data$annotation_response)) &&
+          !values$completion_modal_shown) {
+        values$completion_modal_shown <- TRUE
+        showModal(modalDialog(
+          title = "Annotation Complete",
+          paste("You have finished annotating all assigned content.",
+                "You can still navigate through your annotations to review them."),
+          easyClose = TRUE, footer = modalButton("Close")
+        ))
+      }
+    })
+
     # ---- Flag handler ----------------------------------------------------
     observeEvent(input$flagButton, {
       if (values$index > nrow(values$data)) return()
@@ -1116,6 +1341,13 @@ server <- function(input, output, session) {
         else if (e.key === 'f') $('#flagButton').click();
         else if (e.key === 'ArrowRight') $('#nextButton').click();
         else if (e.key === 'ArrowLeft')  $('#backButton').click();
+        // relative_side shortcuts: s = swap, Enter = confirm
+        else if (e.key === 's' || e.key === 'S') {
+          if ($('#swapButton').length) $('#swapButton').click();
+        }
+        else if (e.key === 'Enter') {
+          if ($('#confirmPlacement').length) $('#confirmPlacement').click();
+        }
       });
     ")
   })
