@@ -652,7 +652,7 @@ ui <- fluidPage(
       }
       .placement-second-row {
         display: flex;
-        align-items: flex-start;   /* buttons top-align with card top */
+        align-items: stretch;      /* wrappers stretch to card height */
         justify-content: center;
         gap: 8px;
         margin-top: 6px;
@@ -668,6 +668,8 @@ ui <- fluidPage(
       .placement-side-wrapper {
         position: relative;
         flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
       }
       /* arrows: each side gets its own colour */
       .placement-side-wrapper::before {
@@ -690,6 +692,7 @@ ui <- fluidPage(
       .placement-side-wrapper:hover::before { opacity: 1; }
       /* the placement buttons themselves */
       .placement-btn {
+        flex: 1;                   /* fills the side wrapper height */
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -699,13 +702,15 @@ ui <- fluidPage(
         border: none;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 0.82em;
+        font-size: 1.05em;
         font-weight: 600;
-        padding: 10px 12px;
-        white-space: nowrap;
+        line-height: 1.5;
+        text-align: center;
+        white-space: pre-line;     /* honour \n line breaks */
+        padding: 10px 14px;
         transition: background-color 0.2s ease, transform 0.15s ease,
                     box-shadow 0.2s ease;
-        min-width: 60px;
+        min-width: 66px;
       }
       .placement-btn-left  { background-color: #3a86ff; }
       .placement-btn-right { background-color: #ef476f; }
@@ -1261,9 +1266,9 @@ server <- function(input, output, session) {
                 if (reveal) {
                   div(class = paste("placement-btn placement-btn-left reveal-mode",
                                     if (is_left) "clicked" else ""),
-                      "to the left")
+                      "to\nthe\nleft")
                 } else {
-                  actionButton("btn_1", "to the left",
+                  actionButton("btn_1", "to\nthe\nleft",
                     class = paste("placement-btn placement-btn-left",
                                   if (is_left) "clicked" else ""))
                 }
@@ -1279,9 +1284,9 @@ server <- function(input, output, session) {
                 if (reveal) {
                   div(class = paste("placement-btn placement-btn-right reveal-mode",
                                     if (is_right) "clicked" else ""),
-                      "to the right")
+                      "to\nthe\nright")
                 } else {
-                  actionButton("btn_2", "to the right",
+                  actionButton("btn_2", "to\nthe\nright",
                     class = paste("placement-btn placement-btn-right",
                                   if (is_right) "clicked" else ""))
                 }
