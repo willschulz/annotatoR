@@ -643,21 +643,25 @@ ui <- fluidPage(
         flex-direction: column;
         align-items: center;
       }
-      /* anchor section (label + card) and partner section share the same width */
+      /* anchor section (label + card) and partner label row share card width */
       .placement-anchor-section,
-      .placement-partner-section {
+      .placement-partner-label-row {
         width: 50vw;
         max-width: 700px;
         min-width: 280px;
       }
       .placement-second-row {
         display: flex;
-        align-items: center;
+        align-items: flex-start;   /* buttons top-align with card top */
         justify-content: center;
         gap: 8px;
-        margin-top: 28px;  /* gap for arrows */
+        margin-top: 6px;
       }
-      .placement-partner-section {
+      /* partner card (sits directly inside .placement-second-row) */
+      .placement-partner-card {
+        width: 50vw;
+        max-width: 700px;
+        min-width: 280px;
         flex-shrink: 0;
       }
       /* side button wrappers – arrows appear here via ::before */
@@ -665,6 +669,7 @@ ui <- fluidPage(
         position: relative;
         flex-shrink: 0;
       }
+      /* arrows: each side gets its own colour */
       .placement-side-wrapper::before {
         content: '';
         position: absolute;
@@ -675,44 +680,39 @@ ui <- fluidPage(
         height: 0;
         border-left: 9px solid transparent;
         border-right: 9px solid transparent;
-        border-bottom: 15px solid #3a86ff;
         opacity: 0;
         transition: opacity 0.15s ease;
         pointer-events: none;
         z-index: 5;
       }
-      .placement-side-wrapper:hover::before {
-        opacity: 1;
-      }
+      .placement-left-wrapper::before  { border-bottom: 15px solid #3a86ff; }
+      .placement-right-wrapper::before { border-bottom: 15px solid #ef476f; }
+      .placement-side-wrapper:hover::before { opacity: 1; }
       /* the placement buttons themselves */
       .placement-btn {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 6px;
-        background-color: #3a86ff;
+        gap: 0;
         color: white;
         border: none;
         border-radius: 8px;
         cursor: pointer;
         font-size: 0.82em;
         font-weight: 600;
-        padding: 10px 10px;
+        padding: 10px 12px;
         white-space: nowrap;
         transition: background-color 0.2s ease, transform 0.15s ease,
                     box-shadow 0.2s ease;
         min-width: 60px;
       }
-      .placement-btn:hover {
-        background-color: #2b6ede;
-        transform: scale(1.04);
-      }
-      .placement-btn i { font-size: 1.15em; }
-      .placement-btn.clicked {
-        box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #3a86ff;
-        transform: scale(1.05);
-      }
+      .placement-btn-left  { background-color: #3a86ff; }
+      .placement-btn-right { background-color: #ef476f; }
+      .placement-btn-left:hover  { background-color: #2b6ede; transform: scale(1.04); }
+      .placement-btn-right:hover { background-color: #d94365; transform: scale(1.04); }
+      .placement-btn-left.clicked  { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #3a86ff; transform: scale(1.05); }
+      .placement-btn-right.clicked { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #ef476f; transform: scale(1.05); }
       .placement-btn.reveal-mode { cursor: default; pointer-events: none; }
     ")),
 
@@ -1247,45 +1247,42 @@ server <- function(input, output, session) {
                   div(class = "tweet-date", meta$anchor_date))
             ),
 
-            # Second row: [left btn] [partner section] [right btn]
+            # Partner label sits above the row (outside the flex row so
+            # align-items: flex-start aligns buttons with the card top)
+            div(class = "placement-partner-label-row",
+              div(class = "placement-card-label",
+                  "\u2026where would you place this tweet?")
+            ),
+
+            # Second row: [left btn] [partner card] [right btn]
             div(class = "placement-second-row",
               # Left wrapper (arrow via CSS ::before on hover)
-              div(class = "placement-side-wrapper",
+              div(class = "placement-side-wrapper placement-left-wrapper",
                 if (reveal) {
-                  div(class = paste("placement-btn reveal-mode",
+                  div(class = paste("placement-btn placement-btn-left reveal-mode",
                                     if (is_left) "clicked" else ""),
-                      icon("arrow-left"),
-                      tags$span("to the\nleft"))
+                      "to the left")
                 } else {
-                  actionButton("btn_1",
-                    tagList(icon("arrow-left"),
-                             tags$span("to the left")),
-                    class = paste("placement-btn",
+                  actionButton("btn_1", "to the left",
+                    class = paste("placement-btn placement-btn-left",
                                   if (is_left) "clicked" else ""))
                 }
               ),
 
-              # Partner card section
-              div(class = "placement-partner-section",
-                div(class = "placement-card-label",
-                    "\u2026where would you place this tweet?"),
-                div(class = "tweet-card",
-                    p(meta$partner_text),
-                    div(class = "tweet-date", meta$partner_date))
-              ),
+              # Partner card (direct child of the row)
+              div(class = "tweet-card placement-partner-card",
+                  p(meta$partner_text),
+                  div(class = "tweet-date", meta$partner_date)),
 
               # Right wrapper
-              div(class = "placement-side-wrapper",
+              div(class = "placement-side-wrapper placement-right-wrapper",
                 if (reveal) {
-                  div(class = paste("placement-btn reveal-mode",
+                  div(class = paste("placement-btn placement-btn-right reveal-mode",
                                     if (is_right) "clicked" else ""),
-                      icon("arrow-right"),
-                      tags$span("to the right"))
+                      "to the right")
                 } else {
-                  actionButton("btn_2",
-                    tagList(icon("arrow-right"),
-                             tags$span("to the right")),
-                    class = paste("placement-btn",
+                  actionButton("btn_2", "to the right",
+                    class = paste("placement-btn placement-btn-right",
                                   if (is_right) "clicked" else ""))
                 }
               )
