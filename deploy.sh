@@ -58,4 +58,4 @@ fi
 
 echo ""
 echo "Deploy complete. Service is running and listening on http://127.0.0.1:3839 (hydria)."
-echo "Tailscale URL: https://datascience.manx-celsius.ts.net/label/"
+echo "Tailscale URL: https://datascience.manx-celsius.ts.net:8443/"

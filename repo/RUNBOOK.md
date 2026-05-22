@@ -1,6 +1,6 @@
 # annotatoR Runbook
 
-Operational reference for the annotatoR Shiny annotation service running on the datascience VM, served via Tailscale at `https://datascience.manx-celsius.ts.net/label/`.
+Operational reference for the annotatoR Shiny annotation service running on the datascience VM, served via Tailscale at `https://datascience.manx-celsius.ts.net:8443/`.
 
 ---
 
