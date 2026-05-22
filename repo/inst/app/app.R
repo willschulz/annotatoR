@@ -667,6 +667,13 @@ ui <- fluidPage(
         min-width: 280px;
         flex-shrink: 0;
       }
+      /* Both placement cards get a min-height sized for ~4 lines of tweet text
+         (4 lines × 1.05em × 1.5 line-height + date + padding ≈ 10rem).
+         Cards can expand for longer tweets but won't shrink below this. */
+      .placement-anchor-section .tweet-card,
+      .placement-partner-card {
+        min-height: 10rem;
+      }
       /* side button wrappers – arrows appear here via ::before */
       .placement-side-wrapper {
         position: relative;
