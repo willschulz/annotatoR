@@ -637,15 +637,28 @@ ui <- fluidPage(
         margin-bottom: 5px;
         padding-left: 2px;
       }
+      /* outer container: centres both card sections horizontally */
+      .placement-vertical-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      /* anchor section (label + card) and partner section share the same width */
+      .placement-anchor-section,
+      .placement-partner-section {
+        width: 50vw;
+        max-width: 700px;
+        min-width: 280px;
+      }
       .placement-second-row {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
         margin-top: 28px;  /* gap for arrows */
       }
       .placement-partner-section {
-        flex: 1;
-        min-width: 0;
+        flex-shrink: 0;
       }
       /* side button wrappers – arrows appear here via ::before */
       .placement-side-wrapper {
@@ -1224,13 +1237,15 @@ server <- function(input, output, session) {
                       current$annotation_response == "Right"
           reveal   <- isTRUE(as.logical(current$reveal_mode))
 
-          tagList(
-            # Anchor card
-            div(class = "placement-card-label",
-                "Relative to this tweet\u2026"),
-            div(class = "tweet-card",
-                p(meta$anchor_text),
-                div(class = "tweet-date", meta$anchor_date)),
+          div(class = "placement-vertical-container",
+            # Anchor card (fixed ~50vw width, centred)
+            div(class = "placement-anchor-section",
+              div(class = "placement-card-label",
+                  "Relative to this tweet\u2026"),
+              div(class = "tweet-card",
+                  p(meta$anchor_text),
+                  div(class = "tweet-date", meta$anchor_date))
+            ),
 
             # Second row: [left btn] [partner section] [right btn]
             div(class = "placement-second-row",
