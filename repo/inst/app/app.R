@@ -629,6 +629,78 @@ ui <- fluidPage(
         .tweet-pair-side { flex-direction: column; }
         .tweet-slot-label { border-radius: 6px 6px 0 0; }
       }
+      /* ---- relative_vertical placement layout -------------------------------- */
+      .placement-card-label {
+        font-size: 0.82em;
+        color: #777;
+        font-style: italic;
+        margin-bottom: 5px;
+        padding-left: 2px;
+      }
+      .placement-second-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 28px;  /* gap for arrows */
+      }
+      .placement-partner-section {
+        flex: 1;
+        min-width: 0;
+      }
+      /* side button wrappers – arrows appear here via ::before */
+      .placement-side-wrapper {
+        position: relative;
+        flex-shrink: 0;
+      }
+      .placement-side-wrapper::before {
+        content: '';
+        position: absolute;
+        top: -22px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 9px solid transparent;
+        border-right: 9px solid transparent;
+        border-bottom: 15px solid #3a86ff;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        pointer-events: none;
+        z-index: 5;
+      }
+      .placement-side-wrapper:hover::before {
+        opacity: 1;
+      }
+      /* the placement buttons themselves */
+      .placement-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        background-color: #3a86ff;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.82em;
+        font-weight: 600;
+        padding: 10px 10px;
+        white-space: nowrap;
+        transition: background-color 0.2s ease, transform 0.15s ease,
+                    box-shadow 0.2s ease;
+        min-width: 60px;
+      }
+      .placement-btn:hover {
+        background-color: #2b6ede;
+        transform: scale(1.04);
+      }
+      .placement-btn i { font-size: 1.15em; }
+      .placement-btn.clicked {
+        box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #3a86ff;
+        transform: scale(1.05);
+      }
+      .placement-btn.reveal-mode { cursor: default; pointer-events: none; }
     ")),
 
     # -- Cookie JS: read on load, set on login, clear on logout -----------
@@ -1139,6 +1211,72 @@ server <- function(input, output, session) {
             )
           )
 
+        } else if (ui_type == "relative_vertical") {
+          meta <- extract_pair_meta(current$annotation_html)
+          if (is.null(meta)) {
+            return(div(style = "color:red; padding:20px;",
+                       p("Error: pair metadata not found in annotation_html.")))
+          }
+
+          is_left  <- !is.na(current$annotation_response) &&
+                      current$annotation_response == "Left"
+          is_right <- !is.na(current$annotation_response) &&
+                      current$annotation_response == "Right"
+          reveal   <- isTRUE(as.logical(current$reveal_mode))
+
+          tagList(
+            # Anchor card
+            div(class = "placement-card-label",
+                "Relative to this tweet\u2026"),
+            div(class = "tweet-card",
+                p(meta$anchor_text),
+                div(class = "tweet-date", meta$anchor_date)),
+
+            # Second row: [left btn] [partner section] [right btn]
+            div(class = "placement-second-row",
+              # Left wrapper (arrow via CSS ::before on hover)
+              div(class = "placement-side-wrapper",
+                if (reveal) {
+                  div(class = paste("placement-btn reveal-mode",
+                                    if (is_left) "clicked" else ""),
+                      icon("arrow-left"),
+                      tags$span("to the\nleft"))
+                } else {
+                  actionButton("btn_1",
+                    tagList(icon("arrow-left"),
+                             tags$span("to the left")),
+                    class = paste("placement-btn",
+                                  if (is_left) "clicked" else ""))
+                }
+              ),
+
+              # Partner card section
+              div(class = "placement-partner-section",
+                div(class = "placement-card-label",
+                    "\u2026where would you place this tweet?"),
+                div(class = "tweet-card",
+                    p(meta$partner_text),
+                    div(class = "tweet-date", meta$partner_date))
+              ),
+
+              # Right wrapper
+              div(class = "placement-side-wrapper",
+                if (reveal) {
+                  div(class = paste("placement-btn reveal-mode",
+                                    if (is_right) "clicked" else ""),
+                      icon("arrow-right"),
+                      tags$span("to the right"))
+                } else {
+                  actionButton("btn_2",
+                    tagList(icon("arrow-right"),
+                             tags$span("to the right")),
+                    class = paste("placement-btn",
+                                  if (is_right) "clicked" else ""))
+                }
+              )
+            )
+          )
+
         } else {
           div(
             style = sprintf(
@@ -1172,9 +1310,9 @@ server <- function(input, output, session) {
       layout_parsed <- tryCatch(fromJSON(current$button_layout), error = function(e) list())
       ui_type       <- get_value(layout_parsed$ui_type, "buttons")
 
-      # For relative_side: hide the standard snippet area (the two-column layout
-      # is rendered entirely inside annotation_buttons) and initialize side_order.
-      if (ui_type == "relative_side") {
+      # For relative_side / relative_vertical: hide the standard snippet area
+      # (the full layout is rendered inside annotation_buttons).
+      if (ui_type == "relative_side" || ui_type == "relative_vertical") {
         shinyjs::hide("snippet")
         shinyjs::hide("copy_btn_container")
         meta <- extract_pair_meta(current$annotation_html)
