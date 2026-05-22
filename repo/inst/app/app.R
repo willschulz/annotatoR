@@ -650,6 +650,9 @@ ui <- fluidPage(
         max-width: 700px;
         min-width: 280px;
       }
+      .placement-partner-label-row {
+        margin-top: 2rem;
+      }
       .placement-second-row {
         display: flex;
         align-items: stretch;      /* wrappers stretch to card height */
