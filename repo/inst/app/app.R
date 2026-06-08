@@ -312,8 +312,8 @@ ui <- fluidPage(
       body {
         background-color: #dbdbdb;
         color: rgb(66, 66, 66);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
-                     "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial,
+                     'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
       }
       #login_panel {
         width: 300px;
