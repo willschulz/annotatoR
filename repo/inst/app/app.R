@@ -729,6 +729,63 @@ ui <- fluidPage(
       .placement-btn-left.clicked  { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #3a86ff; transform: scale(1.05); }
       .placement-btn-right.clicked { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #ef476f; transform: scale(1.05); }
       .placement-btn.reveal-mode { cursor: default; pointer-events: none; }
+      /* ---- relative_5point additional colours -------------------------------- */
+      .placement-btn-def-left  { background-color: #1a5fc8; }
+      .placement-btn-arg-left  { background-color: #7ab0e8; }
+      .placement-btn-arg-right { background-color: #e87a8a; }
+      .placement-btn-def-right { background-color: #c83030; }
+      .placement-btn-def-left:hover  { background-color: #1547a0; transform: scale(1.04); }
+      .placement-btn-arg-left:hover  { background-color: #5a8fd0; transform: scale(1.04); }
+      .placement-btn-arg-right:hover { background-color: #d05870; transform: scale(1.04); }
+      .placement-btn-def-right:hover { background-color: #a02828; transform: scale(1.04); }
+      .placement-btn-def-left.clicked  { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #1a5fc8; transform: scale(1.05); }
+      .placement-btn-arg-left.clicked  { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #7ab0e8; transform: scale(1.05); }
+      .placement-btn-arg-right.clicked { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #e87a8a; transform: scale(1.05); }
+      .placement-btn-def-right.clicked { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #c83030; transform: scale(1.05); }
+      /* Don't Know row */
+      .placement-dk-row {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 1.2rem;
+        gap: 8px;
+        width: 50vw;
+        max-width: 700px;
+        min-width: 280px;
+      }
+      .placement-dk-btn {
+        background-color: #888;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 20px;
+        font-size: 1em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+      }
+      .placement-dk-btn:hover { background-color: #666; }
+      .placement-dk-submit {
+        background-color: #444;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 20px;
+        font-size: 1em;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        transition: background-color 0.2s ease;
+      }
+      .placement-dk-submit:hover { background-color: #222; }
+      .placement-dk-row textarea {
+        width: 100%;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        padding: 6px 10px;
+        font-size: 0.95em;
+        resize: vertical;
+      }
     ")),
 
     # -- Cookie JS: read on load, set on login, clear on logout -----------
@@ -1078,6 +1135,7 @@ server <- function(input, output, session) {
       projects = projects,
       completion_modal_shown = FALSE,
       side_order = "anchor",  # "anchor" = anchor on left; "partner" = partner on left
+      show_dk_input = FALSE,
       index = if (nrow(data) > 0) {
         unannotated <- which(is.na(data$annotation_response))
         if (length(unannotated) > 0) min(unannotated) else 1
@@ -1304,6 +1362,129 @@ server <- function(input, output, session) {
             )
           )
 
+        } else if (ui_type == "relative_5point") {
+          meta <- extract_pair_meta(current$annotation_html)
+          if (is.null(meta)) {
+            return(div(style = "color:red; padding:20px;",
+                       p("Error: pair metadata not found in annotation_html.")))
+          }
+
+          resp        <- current$annotation_response
+          is_def_left  <- !is.na(resp) && resp == "Definitely Left"
+          is_arg_left  <- !is.na(resp) && resp == "Arguably Left"
+          is_arg_right <- !is.na(resp) && resp == "Arguably Right"
+          is_def_right <- !is.na(resp) && resp == "Definitely Right"
+          is_dk        <- !is.na(resp) && startsWith(resp, "Don't Know")
+          dk_saved_text <- if (is_dk && nchar(resp) > nchar("Don't Know: "))
+                             substr(resp, nchar("Don't Know: ") + 1L, nchar(resp))
+                           else ""
+          reveal   <- isTRUE(as.logical(current$reveal_mode))
+          show_dk  <- isTRUE(values$show_dk_input) || is_dk
+
+          div(class = "placement-vertical-container",
+            # Anchor card
+            div(class = "placement-anchor-section",
+              div(class = "placement-card-label", "Relative to this tweet…"),
+              div(class = "tweet-card",
+                  p(meta$anchor_text),
+                  div(class = "tweet-date", meta$anchor_date))
+            ),
+
+            # Partner label
+            div(class = "placement-partner-label-row",
+              div(class = "placement-card-label",
+                  "…where would you place this tweet?")
+            ),
+
+            # Second row: [L-btn-pair] [partner card] [R-btn-pair]
+            div(class = "placement-second-row",
+              # Left pair wrapper (two stacked buttons)
+              div(class = "placement-side-wrapper placement-left-wrapper",
+                if (reveal) {
+                  tagList(
+                    div(class = paste("placement-btn placement-btn-def-left reveal-mode",
+                                      if (is_def_left) "clicked" else ""),
+                        "Definitely
+left"),
+                    div(class = paste("placement-btn placement-btn-arg-left reveal-mode",
+                                      if (is_arg_left) "clicked" else ""),
+                        "Arguably
+left")
+                  )
+                } else {
+                  tagList(
+                    actionButton("btn_1", "Definitely
+left",
+                      class = paste("placement-btn placement-btn-def-left",
+                                    if (is_def_left) "clicked" else "")),
+                    actionButton("btn_2", "Arguably
+left",
+                      class = paste("placement-btn placement-btn-arg-left",
+                                    if (is_arg_left) "clicked" else ""))
+                  )
+                }
+              ),
+
+              # Partner card
+              div(class = "tweet-card placement-partner-card",
+                  p(meta$partner_text),
+                  div(class = "tweet-date", meta$partner_date)),
+
+              # Right pair wrapper (two stacked buttons)
+              div(class = "placement-side-wrapper placement-right-wrapper",
+                if (reveal) {
+                  tagList(
+                    div(class = paste("placement-btn placement-btn-arg-right reveal-mode",
+                                      if (is_arg_right) "clicked" else ""),
+                        "Arguably
+right"),
+                    div(class = paste("placement-btn placement-btn-def-right reveal-mode",
+                                      if (is_def_right) "clicked" else ""),
+                        "Definitely
+right")
+                  )
+                } else {
+                  tagList(
+                    actionButton("btn_3", "Arguably
+right",
+                      class = paste("placement-btn placement-btn-arg-right",
+                                    if (is_arg_right) "clicked" else "")),
+                    actionButton("btn_4", "Definitely
+right",
+                      class = paste("placement-btn placement-btn-def-right",
+                                    if (is_def_right) "clicked" else ""))
+                  )
+                }
+              )
+            ),
+
+            # Don't Know row (hidden in reveal mode unless already saved as DK)
+            if (reveal && is_dk) {
+              div(class = "placement-dk-row",
+                div(style = "color:#888; font-style:italic; padding:8px 0;",
+                    if (nchar(dk_saved_text) > 0)
+                      paste0("Don't Know: ", dk_saved_text)
+                    else "Don't Know"))
+            } else if (!reveal) {
+              div(class = "placement-dk-row",
+                if (!show_dk) {
+                  actionButton("btn_dk", "? Don't Know",
+                    class = "placement-dk-btn btn")
+                } else {
+                  tagList(
+                    textAreaInput("dk_text", label = NULL,
+                                  value       = dk_saved_text,
+                                  placeholder = "Briefly explain why (optional)…",
+                                  rows        = 2,
+                                  width       = "100%"),
+                    actionButton("btn_dk_submit", "Submit Don't Know",
+                                 class = "placement-dk-submit btn")
+                  )
+                }
+              )
+            }
+          )
+
         } else {
           div(
             style = sprintf(
@@ -1337,9 +1518,12 @@ server <- function(input, output, session) {
       layout_parsed <- tryCatch(fromJSON(current$button_layout), error = function(e) list())
       ui_type       <- get_value(layout_parsed$ui_type, "buttons")
 
-      # For relative_side / relative_vertical: hide the standard snippet area
-      # (the full layout is rendered inside annotation_buttons).
-      if (ui_type == "relative_side" || ui_type == "relative_vertical") {
+      # Reset DK panel state whenever the item changes
+      values$show_dk_input <- FALSE
+
+      # For relative_side / relative_vertical / relative_5point: hide the standard
+      # snippet area (the full layout is rendered inside annotation_buttons).
+      if (ui_type %in% c("relative_side", "relative_vertical", "relative_5point")) {
         shinyjs::hide("snippet")
         shinyjs::hide("copy_btn_container")
         meta <- extract_pair_meta(current$annotation_html)
@@ -1458,6 +1642,48 @@ server <- function(input, output, session) {
                   annotator_id     = current$annotator_id,
                   field            = "annotation_response",
                   new_value        = response)
+
+      if (values$index < nrow(values$data)) {
+        values$index <- values$index + 1
+      }
+
+      if (all(!is.na(values$data$annotation_response)) &&
+          !values$completion_modal_shown) {
+        values$completion_modal_shown <- TRUE
+        showModal(modalDialog(
+          title = "Annotation Complete",
+          paste("You have finished annotating all assigned content.",
+                "You can still navigate through your annotations to review them."),
+          easyClose = TRUE, footer = modalButton("Close")
+        ))
+      }
+    })
+
+    # ---- 5-point: Don't Know toggle and submit ----------------------------
+    observeEvent(input$btn_dk, {
+      if (values$index > nrow(values$data)) return()
+      rm_val <- as.logical(values$data[values$index, "reveal_mode"])
+      if (!is.na(rm_val) && rm_val) return()
+      values$show_dk_input <- TRUE
+    })
+
+    observeEvent(input$btn_dk_submit, {
+      if (values$index > nrow(values$data)) return()
+      rm_val <- as.logical(values$data[values$index, "reveal_mode"])
+      if (!is.na(rm_val) && rm_val) return()
+
+      note <- trimws(input$dk_text)
+      resp <- if (nchar(note) > 0) paste0("Don't Know: ", note) else "Don't Know"
+
+      values$data[values$index, "annotation_response"] <- resp
+      update_item(pool,
+                  id               = values$data[values$index, "id"],
+                  instruction_hash = values$data[values$index, "instruction_hash"],
+                  annotator_id     = values$data[values$index, "annotator_id"],
+                  field            = "annotation_response",
+                  new_value        = resp)
+
+      values$show_dk_input <- FALSE
 
       if (values$index < nrow(values$data)) {
         values$index <- values$index + 1

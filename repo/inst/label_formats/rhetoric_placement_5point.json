@@ -1,0 +1,10 @@
+{
+  "name": "Rhetoric Placement (5-point)",
+  "description": "Place the second tweet on a 5-point ideological scale relative to the first.",
+  "button_layout": {
+    "ui_type": "relative_5point"
+  },
+  "annotation_labels": {
+    "text": ["Definitely Left", "Arguably Left", "Arguably Right", "Definitely Right"]
+  }
+}
