@@ -150,6 +150,11 @@ local({
     dbExecute(con, "ALTER TABLE items ADD COLUMN project TEXT"),
     error = function(e) invisible(NULL)
   )
+  # Add annotation_notes column if not present.
+  tryCatch(
+    dbExecute(con, "ALTER TABLE items ADD COLUMN annotation_notes TEXT"),
+    error = function(e) invisible(NULL)
+  )
   dbExecute(con,
     "UPDATE items SET project = 'False Polarization' WHERE project IS NULL")
 })
@@ -730,18 +735,27 @@ ui <- fluidPage(
       .placement-btn-right.clicked { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #ef476f; transform: scale(1.05); }
       .placement-btn.reveal-mode { cursor: default; pointer-events: none; }
       /* ---- relative_5point additional colours -------------------------------- */
-      .placement-btn-def-left  { background-color: #1a5fc8; }
-      .placement-btn-arg-left  { background-color: #7ab0e8; }
-      .placement-btn-arg-right { background-color: #e87a8a; }
-      .placement-btn-def-right { background-color: #c83030; }
-      .placement-btn-def-left:hover  { background-color: #1547a0; transform: scale(1.04); }
-      .placement-btn-arg-left:hover  { background-color: #5a8fd0; transform: scale(1.04); }
-      .placement-btn-arg-right:hover { background-color: #d05870; transform: scale(1.04); }
-      .placement-btn-def-right:hover { background-color: #a02828; transform: scale(1.04); }
+      .btn.placement-btn-def-left,  .placement-btn-def-left  { background-color: #1a5fc8 !important; }
+      .btn.placement-btn-arg-left,  .placement-btn-arg-left  { background-color: #7ab0e8 !important; }
+      .btn.placement-btn-arg-right, .placement-btn-arg-right { background-color: #e87a8a !important; }
+      .btn.placement-btn-def-right, .placement-btn-def-right { background-color: #c83030 !important; }
+      .btn.placement-btn-def-left:hover  { background-color: #1547a0 !important; transform: scale(1.04); }
+      .btn.placement-btn-arg-left:hover  { background-color: #5a8fd0 !important; transform: scale(1.04); }
+      .btn.placement-btn-arg-right:hover { background-color: #d05870 !important; transform: scale(1.04); }
+      .btn.placement-btn-def-right:hover { background-color: #a02828 !important; transform: scale(1.04); }
       .placement-btn-def-left.clicked  { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #1a5fc8; transform: scale(1.05); }
       .placement-btn-arg-left.clicked  { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #7ab0e8; transform: scale(1.05); }
       .placement-btn-arg-right.clicked { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #e87a8a; transform: scale(1.05); }
       .placement-btn-def-right.clicked { box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #c83030; transform: scale(1.05); }
+      /* 5-point side-by-side button groups */
+      .placement-5pt-grp-left,
+      .placement-5pt-grp-right {
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+        flex-shrink: 0;
+        align-items: stretch;
+      }
       /* Don't Know row */
       .placement-dk-row {
         display: flex;
@@ -786,6 +800,13 @@ ui <- fluidPage(
         font-size: 0.95em;
         resize: vertical;
       }
+      /* General item notes field */
+      .item-notes-container {
+        margin-top: 1.4rem;
+        border-top: 1px solid #e8e8e8;
+        padding-top: 0.8rem;
+      }
+      .item-notes-container label { color: #999; font-size: 0.85em; }
     ")),
 
     # -- Cookie JS: read on load, set on login, clear on logout -----------
@@ -1090,6 +1111,12 @@ server <- function(input, output, session) {
                                      class = "btn-copy")),
                     br(),
                     uiOutput("annotation_buttons"),
+                    br(),
+                    div(class = "item-notes-container",
+                      textAreaInput("item_notes", label = "Notes", value = "",
+                                    placeholder = "Optional notes on this item…",
+                                    rows = 2, width = "100%")
+                    ),
                     br()
           ),
           div(id = "progress_group",
@@ -1396,28 +1423,30 @@ server <- function(input, output, session) {
                   "…where would you place this tweet?")
             ),
 
-            # Second row: [L-btn-pair] [partner card] [R-btn-pair]
+            # Second row: [Def-L] [Arg-L]  [partner card]  [Arg-R] [Def-R]
             div(class = "placement-second-row",
-              # Left pair wrapper (two stacked buttons)
-              div(class = "placement-side-wrapper placement-left-wrapper",
+              style = "gap: 16px;",
+
+              # Left button group (side-by-side)
+              div(class = "placement-5pt-grp-left",
                 if (reveal) {
                   tagList(
                     div(class = paste("placement-btn placement-btn-def-left reveal-mode",
                                       if (is_def_left) "clicked" else ""),
-                        "Definitely
+                        "Def.
 left"),
                     div(class = paste("placement-btn placement-btn-arg-left reveal-mode",
                                       if (is_arg_left) "clicked" else ""),
-                        "Arguably
+                        "Arg.
 left")
                   )
                 } else {
                   tagList(
-                    actionButton("btn_1", "Definitely
+                    actionButton("btn_1", "Def.
 left",
                       class = paste("placement-btn placement-btn-def-left",
                                     if (is_def_left) "clicked" else "")),
-                    actionButton("btn_2", "Arguably
+                    actionButton("btn_2", "Arg.
 left",
                       class = paste("placement-btn placement-btn-arg-left",
                                     if (is_arg_left) "clicked" else ""))
@@ -1430,26 +1459,26 @@ left",
                   p(meta$partner_text),
                   div(class = "tweet-date", meta$partner_date)),
 
-              # Right pair wrapper (two stacked buttons)
-              div(class = "placement-side-wrapper placement-right-wrapper",
+              # Right button group (side-by-side)
+              div(class = "placement-5pt-grp-right",
                 if (reveal) {
                   tagList(
                     div(class = paste("placement-btn placement-btn-arg-right reveal-mode",
                                       if (is_arg_right) "clicked" else ""),
-                        "Arguably
+                        "Arg.
 right"),
                     div(class = paste("placement-btn placement-btn-def-right reveal-mode",
                                       if (is_def_right) "clicked" else ""),
-                        "Definitely
+                        "Def.
 right")
                   )
                 } else {
                   tagList(
-                    actionButton("btn_3", "Arguably
+                    actionButton("btn_3", "Arg.
 right",
                       class = paste("placement-btn placement-btn-arg-right",
                                     if (is_arg_right) "clicked" else "")),
-                    actionButton("btn_4", "Definitely
+                    actionButton("btn_4", "Def.
 right",
                       class = paste("placement-btn placement-btn-def-right",
                                     if (is_def_right) "clicked" else ""))
@@ -1520,6 +1549,11 @@ right",
 
       # Reset DK panel state whenever the item changes
       values$show_dk_input <- FALSE
+
+      # Populate notes textarea with stored value for this item
+      current_notes <- values$data[values$index, "annotation_notes"]
+      updateTextAreaInput(session, "item_notes",
+        value = if (!is.na(current_notes)) current_notes else "")
 
       # For relative_side / relative_vertical / relative_5point: hide the standard
       # snippet area (the full layout is rendered inside annotation_buttons).
@@ -1658,6 +1692,25 @@ right",
         ))
       }
     })
+
+    # ---- General item notes: debounced auto-save ----------------------------
+    notes_debounced <- debounce(reactive(input$item_notes), 800)
+
+    observeEvent(notes_debounced(), {
+      if (is.null(values$data) || values$index > nrow(values$data)) return()
+      new_val <- trimws(notes_debounced())
+      stored  <- values$data[values$index, "annotation_notes"]
+      stored  <- if (is.na(stored)) "" else stored
+      if (identical(new_val, stored)) return()  # no-op on navigation-triggered update
+
+      values$data[values$index, "annotation_notes"] <- new_val
+      update_item(pool,
+                  id               = values$data[values$index, "id"],
+                  instruction_hash = values$data[values$index, "instruction_hash"],
+                  annotator_id     = values$data[values$index, "annotator_id"],
+                  field            = "annotation_notes",
+                  new_value        = new_val)
+    }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
     # ---- 5-point: Don't Know toggle and submit ----------------------------
     observeEvent(input$btn_dk, {
