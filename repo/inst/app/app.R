@@ -806,13 +806,27 @@ ui <- fluidPage(
         font-size: 0.95em;
         resize: vertical;
       }
-      /* General item notes field */
-      .item-notes-container {
-        margin-top: 1.4rem;
-        border-top: 1px solid #e8e8e8;
-        padding-top: 0.8rem;
+      /* Note button (pencil icon, next to flag) */
+      #noteButton {
+        border-radius: 50%;
+        width: 60px !important;
+        height: 60px !important;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: #b0b0b0 !important;
+        color: white;
+        font-size: 1em;
+        min-width: unset;
+        border: none;
+        transition: background-color 0.15s;
       }
-      .item-notes-container label { color: #999; font-size: 0.85em; }
+      #noteButton i { font-size: 1.2em; }
+      #noteButton.has-notes { background-color: #4a90d9 !important; }
+      #noteButton:hover     { background-color: #888 !important; }
+      #noteButton.has-notes:hover { background-color: #2e6fb0 !important; }
     ")),
 
     # -- Cookie JS: read on load, set on login, clear on logout -----------
@@ -1117,19 +1131,17 @@ server <- function(input, output, session) {
                                      class = "btn-copy")),
                     br(),
                     uiOutput("annotation_buttons"),
-                    br(),
-                    div(class = "item-notes-container",
-                      textAreaInput("item_notes", label = "Notes", value = "",
-                                    placeholder = "Optional notes on this item…",
-                                    rows = 2, width = "100%")
-                    ),
                     br()
           ),
           div(id = "progress_group",
-              div(style = "display: flex; justify-content: space-between; margin-bottom: 10px;",
+              div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;",
                   actionButton("backButton", "<"),
-                  actionButton("flagButton", label = NULL, icon = icon("flag"),
-                               title = "Flag", width = "10%"),
+                  div(style = "display: flex; gap: 10px; align-items: center;",
+                    actionButton("noteButton", label = NULL, icon = icon("pencil"),
+                                 title = "Add / edit note"),
+                    actionButton("flagButton", label = NULL, icon = icon("flag"),
+                                 title = "Flag", width = "10%")
+                  ),
                   actionButton("nextButton", ">")
               ),
               div(class = "progress-wrapper",
@@ -1556,10 +1568,10 @@ right",
       # Reset DK panel state whenever the item changes
       values$show_dk_input <- FALSE
 
-      # Populate notes textarea with stored value for this item
+      # Update note button appearance: filled = has notes for this item
       current_notes <- values$data[values$index, "annotation_notes"]
-      updateTextAreaInput(session, "item_notes",
-        value = if (!is.na(current_notes)) current_notes else "")
+      has_notes <- !is.na(current_notes) && nchar(trimws(current_notes)) > 0
+      shinyjs::toggleClass("noteButton", "has-notes", condition = has_notes)
 
       # For relative_side / relative_vertical / relative_5point: hide the standard
       # snippet area (the full layout is rendered inside annotation_buttons).
@@ -1699,16 +1711,32 @@ right",
       }
     })
 
-    # ---- General item notes: debounced auto-save ----------------------------
-    notes_debounced <- debounce(reactive(input$item_notes), 800)
-
-    observeEvent(notes_debounced(), {
+    # ---- Note button: open modal -----------------------------------------------
+    observeEvent(input$noteButton, {
       if (is.null(values$data) || values$index > nrow(values$data)) return()
-      new_val <- trimws(notes_debounced())
-      stored  <- values$data[values$index, "annotation_notes"]
-      stored  <- if (is.na(stored)) "" else stored
-      if (identical(new_val, stored)) return()  # no-op on navigation-triggered update
+      current_notes <- values$data[values$index, "annotation_notes"]
+      current_val   <- if (!is.na(current_notes)) current_notes else ""
+      showModal(modalDialog(
+        title = "Note",
+        textAreaInput("modal_notes_text",
+                      label       = NULL,
+                      value       = current_val,
+                      placeholder = "Optional notes on this item…",
+                      rows        = 5,
+                      width       = "100%"),
+        footer = tagList(
+          actionButton("modal_notes_save",   "Save",   class = "btn btn-primary"),
+          actionButton("modal_notes_cancel", "Cancel", class = "btn btn-default")
+        ),
+        easyClose = TRUE
+      ))
+    })
 
+    observeEvent(input$modal_notes_cancel, { removeModal() })
+
+    observeEvent(input$modal_notes_save, {
+      if (is.null(values$data) || values$index > nrow(values$data)) return()
+      new_val <- trimws(input$modal_notes_text)
       values$data[values$index, "annotation_notes"] <- new_val
       update_item(pool,
                   id               = values$data[values$index, "id"],
@@ -1716,7 +1744,11 @@ right",
                   annotator_id     = values$data[values$index, "annotator_id"],
                   field            = "annotation_notes",
                   new_value        = new_val)
-    }, ignoreNULL = TRUE, ignoreInit = TRUE)
+      # Update button appearance immediately
+      has_notes <- nchar(new_val) > 0
+      shinyjs::toggleClass("noteButton", "has-notes", condition = has_notes)
+      removeModal()
+    })
 
     # ---- 5-point: Don't Know toggle and submit ----------------------------
     observeEvent(input$btn_dk, {
