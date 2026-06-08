@@ -444,8 +444,8 @@ ui <- fluidPage(
       }
       #flagButton {
         border-radius: 50%;
-        width: 100px !important;
-        height: 100px !important;
+        width: 60px !important;
+        height: 60px !important;
         padding: 0;
         display: flex;
         flex-direction: column;
@@ -457,7 +457,7 @@ ui <- fluidPage(
         min-width: unset;
       }
       #flagButton i {
-        font-size: 1.8em;
+        font-size: 1.3em;
       }
       #flagButton.flagged {
         box-shadow: 0 0 0 3px #dbdbdb, 0 0 0 6px #fcba03;
@@ -501,6 +501,12 @@ ui <- fluidPage(
       }
       #progress_group .btn {
         font-size: 1.75em;
+      }
+      #backButton, #nextButton {
+        height: 44px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        line-height: 44px !important;
       }
       .sidebar {
         position: fixed;
