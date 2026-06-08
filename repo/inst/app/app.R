@@ -312,6 +312,8 @@ ui <- fluidPage(
       body {
         background-color: #dbdbdb;
         color: rgb(66, 66, 66);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
+                     "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
       }
       #login_panel {
         width: 300px;
@@ -889,8 +891,22 @@ ui <- fluidPage(
           setTimeout(function() { label.innerText = orig; }, 1500);
         }
       });
+    ")),
+
+    # -- Emoji font probe: measures rendered width on client, reports to server --
+    tags$script(HTML("
+      $(document).on('shiny:connected', function() {
+        var el = document.getElementById('emoji-probe');
+        var w = el ? el.getBoundingClientRect().width : -1;
+        Shiny.setInputValue('emoji_probe_width', w, {priority: 'event'});
+      });
     "))
   ),
+
+  # Hidden emoji probe span (outside head so it actually renders and has a width)
+  tags$span(id = "emoji-probe",
+             style = "position:absolute;visibility:hidden;font-size:16px;",
+             "🐦"),
 
   # Single reactive output switches between login and annotation views
   uiOutput("app_ui")
@@ -943,6 +959,14 @@ server <- function(input, output, session) {
       }
     }
   }, once = TRUE)
+
+  # ---- Emoji font probe: log whether emoji rendered on client -----------
+  observeEvent(input$emoji_probe_width, {
+    w <- input$emoji_probe_width
+    rendered <- if (!is.null(w) && w > 0) "YES" else "NO"
+    uid <- if (!is.null(user_info())) user_info()$user else "(pre-login)"
+    message(sprintf("[emoji_probe] user=%s width=%.1f rendered=%s", uid, w %||% -1, rendered))
+  }, ignoreNULL = TRUE)
 
   # ---- Manual login button -----------------------------------------------
   observeEvent(input$login_button, {
