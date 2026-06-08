@@ -1816,6 +1816,7 @@ right",
     # ---- Keyboard shortcuts -----------------------------------------------
     runjs("
       $(document).keyup(function(e) {
+        if ($(e.target).is('input, textarea, select')) return;
         if (e.key === '1') $('#btn_1').click();
         else if (e.key === '2') $('#btn_2').click();
         else if (e.key === '3') $('#btn_3').click();
