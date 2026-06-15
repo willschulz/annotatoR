@@ -95,9 +95,16 @@ annotator_create_batch <- function(df, format, annotators,
   n_skipped  <- 0L
   n_total    <- nrow(df) * length(annotators)
 
+  # Fix 2: pre-compute hashes once per unique instruction (not once per row)
+  instr_hashes <- vapply(df$annotation_instruction, digest::digest,
+                         FUN.VALUE = character(1), algo = "md5", serialize = FALSE)
+
+  # Fix 1: wrap the entire insert loop in a single transaction so SQLite
+  # performs one fsync instead of one per row (~50-100x faster on WAL DBs)
+  DBI::dbWithTransaction(con, {
   for (i in seq_len(nrow(df))) {
     row <- df[i, , drop = FALSE]
-    instr_hash <- digest::digest(row$annotation_instruction, algo = "md5", serialize = FALSE)
+    instr_hash <- instr_hashes[[i]]
 
     # Pre-filled response (for reveal batches, etc.)
     response <- if ("annotation_response" %in% names(row) && !is.na(row$annotation_response)) {
@@ -153,6 +160,7 @@ annotator_create_batch <- function(df, format, annotators,
       if (res == 0L) n_skipped <- n_skipped + 1L
     }
   }
+  }) # end dbWithTransaction
 
   # Report post-insert state
   post_count <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM items")$n

@@ -86,6 +86,36 @@ sudo systemctl restart annotator
 
 ## Creating annotation batches from R
 
+**IMPORTANT — always run batch inserts on the datascience VM, not the laptop.**
+The live DB is at `~/projects/tools/annotatoR/state/annotatoR.sqlite` *on the
+datascience VM* (NAS-mounted via `/home/wschulz/projects`). On the laptop,
+`~/projects` is a local directory that is **not** the NAS — inserting there
+silently writes to a junk file the service never reads. SQLite-over-SMB via
+`/Volumes/projects` is also unsafe (locking semantics). The safe pattern is:
+
+```bash
+# Copy your insert script to the NAS (it's already visible on the VM)
+ssh wschulz@100.65.14.50 'cd ~/projects/<your-project> && Rscript insert_batch.R'
+# Verify
+ssh wschulz@100.65.14.50 'Rscript -e "
+  library(DBI); library(RSQLite)
+  con <- dbConnect(SQLite(), \"~/projects/tools/annotatoR/state/annotatoR.sqlite\", flags=SQLITE_RO)
+  print(dbGetQuery(con, \"SELECT COUNT(*) n FROM items WHERE id LIKE \\\"your_prefix_%\\\"\"))
+  dbDisconnect(con)
+"'
+```
+
+**Transaction semantics and expected throughput** (2026-06-15, `annotator_create_batch` v0.1.2+):
+`annotator_create_batch()` wraps the entire insert loop in a single
+`DBI::dbWithTransaction()`, so SQLite performs one fsync per batch instead of
+one per row. Expected rates:
+
+| Scenario | Before (no transaction) | After (single transaction) |
+|---|---|---|
+| 10,937-row push (1 annotator) | ~15 min | ~15-30 sec |
+| 1,885-row batch (5 annotators) | ~2.5 min | ~2-5 sec |
+| Mid-batch error | partial write (hard to clean) | full rollback (atomic) |
+
 From any R session (e.g. inside a research project):
 
 ```r
