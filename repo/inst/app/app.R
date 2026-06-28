@@ -682,7 +682,7 @@ ui <- fluidPage(
       }
       .placement-5pt-row .placement-btn {
         flex: 1;
-        aspect-ratio: 1;
+        height: 3.2rem;
         min-width: 0;
       }
       /* partner card (sits directly inside .placement-second-row) */
