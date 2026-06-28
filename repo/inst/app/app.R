@@ -358,7 +358,7 @@ ui <- fluidPage(
       .mainpanel-container {
         display: flex;
         flex-direction: column;
-        height: 100vh;
+        min-height: 100vh;
       }
       .mainpanel {
         flex-grow: 1;
@@ -680,13 +680,7 @@ ui <- fluidPage(
         min-width: 280px;
         flex-shrink: 0;
       }
-      /* Both placement cards get a min-height sized for ~4 lines of tweet text
-         (4 lines × 1.05em × 1.5 line-height + date + padding ≈ 10rem).
-         Cards can expand for longer tweets but won't shrink below this. */
-      .placement-anchor-section .tweet-card,
-      .placement-partner-card {
-        min-height: 15rem;
-      }
+      /* tweet cards grow to fit content — no fixed min-height imposed */
       /* side button wrappers – arrows appear here via ::before */
       .placement-side-wrapper {
         position: relative;
