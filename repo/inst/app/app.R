@@ -679,6 +679,7 @@ ui <- fluidPage(
         max-width: 700px;
         min-width: 280px;
         flex-shrink: 0;
+        transition: transform 0.08s ease;
       }
       /* tweet cards grow to fit content — no fixed min-height imposed */
       /* side button wrappers – arrows appear here via ::before */
@@ -918,6 +919,29 @@ ui <- fluidPage(
         var el = document.getElementById('emoji-probe');
         var w = el ? el.getBoundingClientRect().width : -1;
         Shiny.setInputValue('emoji_probe_width', w, {priority: 'event'});
+      });
+    ")),
+
+    # -- Partner-card mouse tracking: card drifts left/right with mouse position --
+    tags$script(HTML("
+      // When hovering over the 5-point placement row, the partner card physically
+      // shifts left/right proportional to the mouse X position in the row.
+      // This gives annotators a visual heuristic for how far left/right they
+      // intend to place the second tweet.
+      $(document).on('mousemove', '.placement-second-row', function(e) {
+        var $row   = $(this);
+        var relX   = (e.pageX - $row.offset().left) / $row.outerWidth();
+        var shift  = (relX - 0.5) * 80;   // ±40 px range
+        $row.find('.placement-partner-card').css('transform',
+          'translateX(' + shift + 'px)');
+      });
+      // Reset on mouse leave
+      $(document).on('mouseleave', '.placement-second-row', function() {
+        $(this).find('.placement-partner-card').css('transform', '');
+      });
+      // Snap to center after a placement button click (card locks, then advances)
+      $(document).on('click', '.placement-btn, .placement-dk-quick-btn', function() {
+        $('.placement-partner-card').css('transform', '');
       });
     "))
   ),
