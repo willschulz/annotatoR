@@ -710,7 +710,7 @@ ui <- fluidPage(
         max-width: 700px;
         min-width: 280px;
         flex-shrink: 0;
-        transition: transform 0.08s ease;
+        transition: transform 0.18s ease;
       }
       /* tweet cards grow to fit content — no fixed min-height imposed */
       /* side button wrappers – arrows appear here via ::before */
@@ -966,8 +966,11 @@ ui <- fluidPage(
         var relX   = (e.pageX - $zone.offset().left) / $zone.outerWidth();
         relX = Math.max(0, Math.min(1, relX));   // clamp to [0, 1]
 
-        // Animate card: centre = 0.5, ±60px range
-        var shift = (relX - 0.5) * 120;
+        // Stepped card position: one of 4 discrete offsets, changes only at zone boundaries
+        var shift = relX < 0.25 ? -60
+                  : relX < 0.50 ? -20
+                  : relX < 0.75 ?  20
+                  :                60;
         $zone.find('.placement-partner-card').css('transform',
           'translateX(' + shift + 'px)');
 
