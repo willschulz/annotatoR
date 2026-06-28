@@ -802,6 +802,31 @@ ui <- fluidPage(
         font-size: 0.95em;
         resize: vertical;
       }
+      /* Quick DK shortcut buttons (one-click categorical reasons) */
+      .placement-dk-quick-row {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+        justify-content: center;
+      }
+      .placement-dk-quick-btn {
+        background-color: #aaa;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 6px 14px;
+        font-size: 0.88em;
+        font-weight: 600;
+        cursor: pointer;
+        flex: 1;
+        transition: background-color 0.2s ease;
+        white-space: nowrap;
+      }
+      .placement-dk-quick-btn:hover { background-color: #888; }
+      .placement-dk-quick-btn.dk-quick-selected {
+        box-shadow: 0 0 0 3px #fff, 0 0 0 5px #666;
+        background-color: #666;
+      }
       /* Note button (pencil icon, next to flag) */
       #noteButton {
         border-radius: 50%;
@@ -1442,7 +1467,11 @@ server <- function(input, output, session) {
                              substr(resp, nchar("Don't Know: ") + 1L, nchar(resp))
                            else ""
           reveal   <- isTRUE(as.logical(current$reveal_mode))
-          show_dk  <- isTRUE(values$show_dk_input) || is_dk
+          is_dk_quick <- is_dk && resp %in% c(
+            "Don't Know: ideological, no difference",
+            "Don't Know: both non-ideological"
+          )
+          show_dk  <- isTRUE(values$show_dk_input) || (is_dk && !is_dk_quick)
 
           div(class = "placement-vertical-container",
             # Anchor card
@@ -1532,6 +1561,22 @@ right",
                     else "Don't Know"))
             } else if (!reveal) {
               div(class = "placement-dk-row",
+                # Quick categorical DK shortcuts (one-click, auto-advance)
+                div(class = "placement-dk-quick-row",
+                  actionButton("btn_dk_ideol_nodiff",
+                    "Ideological, no difference",
+                    class = paste("placement-dk-quick-btn btn",
+                      if (isTRUE(is_dk_quick) &&
+                          resp == "Don't Know: ideological, no difference")
+                        "dk-quick-selected" else "")),
+                  actionButton("btn_dk_nonideol",
+                    "Both non-ideological",
+                    class = paste("placement-dk-quick-btn btn",
+                      if (isTRUE(is_dk_quick) &&
+                          resp == "Don't Know: both non-ideological")
+                        "dk-quick-selected" else ""))
+                ),
+                # Open-ended Don't Know (two-step: click → textarea → submit)
                 if (!show_dk) {
                   actionButton("btn_dk", "? Don't Know",
                     class = "placement-dk-btn btn")
@@ -1768,6 +1813,45 @@ right",
       removeModal()
     })
 
+    # ---- 5-point: quick categorical DK shortcuts -------------------------
+    handle_dk_quick <- function(resp_value) {
+      if (values$index > nrow(values$data)) return()
+      rm_val <- as.logical(values$data[values$index, "reveal_mode"])
+      if (!is.na(rm_val) && rm_val) return()
+
+      values$data[values$index, "annotation_response"] <- resp_value
+      update_item(pool,
+                  id               = values$data[values$index, "id"],
+                  instruction_hash = values$data[values$index, "instruction_hash"],
+                  annotator_id     = values$data[values$index, "annotator_id"],
+                  field            = "annotation_response",
+                  new_value        = resp_value)
+
+      values$show_dk_input <- FALSE
+
+      if (values$index < nrow(values$data)) {
+        values$index <- values$index + 1
+      }
+
+      if (all(!is.na(values$data$annotation_response)) &&
+          !values$completion_modal_shown) {
+        values$completion_modal_shown <- TRUE
+        showModal(modalDialog(
+          title = "Annotation Complete",
+          paste("You have finished annotating all assigned content.",
+                "You can still navigate through your annotations to review them."),
+          easyClose = TRUE, footer = modalButton("Close")
+        ))
+      }
+    }
+
+    observeEvent(input$btn_dk_ideol_nodiff, {
+      handle_dk_quick("Don't Know: ideological, no difference")
+    })
+    observeEvent(input$btn_dk_nonideol, {
+      handle_dk_quick("Don't Know: both non-ideological")
+    })
+
     # ---- 5-point: Don't Know toggle and submit ----------------------------
     observeEvent(input$btn_dk, {
       if (values$index > nrow(values$data)) return()
@@ -1839,6 +1923,8 @@ right",
         else if (e.key === '2') $('#btn_2').click();
         else if (e.key === '3') $('#btn_3').click();
         else if (e.key === '4') $('#btn_4').click();
+        else if (e.key === '5') { if ($('#btn_dk_ideol_nodiff').length) $('#btn_dk_ideol_nodiff').click(); }
+        else if (e.key === '6') { if ($('#btn_dk_nonideol').length) $('#btn_dk_nonideol').click(); }
         else if (e.key === 'f') $('#flagButton').click();
         else if (e.key === 'ArrowRight') $('#nextButton').click();
         else if (e.key === 'ArrowLeft')  $('#backButton').click();
