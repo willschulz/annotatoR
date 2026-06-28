@@ -656,6 +656,19 @@ ui <- fluidPage(
         flex-direction: column;
         align-items: center;
       }
+      /* shared mouse-tracking zone: partner card + 4 buttons */
+      .placement-interactive-zone {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 50vw;
+        max-width: 700px;
+        min-width: 280px;
+        cursor: crosshair;
+      }
+      .placement-interactive-zone .placement-5pt-row {
+        width: 100%;
+      }
       /* anchor section (label + card) and partner label row share card width */
       .placement-anchor-section,
       .placement-partner-label-row {
@@ -682,8 +695,14 @@ ui <- fluidPage(
       }
       .placement-5pt-row .placement-btn {
         flex: 1;
-        height: 3.2rem;
+        height: 3.8rem;
         min-width: 0;
+        transition: filter 0.07s ease, transform 0.07s ease;
+      }
+      .placement-5pt-row .placement-btn.btn-hover-active {
+        filter: brightness(1.25);
+        transform: scale(1.06);
+        z-index: 1;
       }
       /* partner card (sits directly inside .placement-second-row) */
       .placement-partner-card {
@@ -934,26 +953,43 @@ ui <- fluidPage(
       });
     ")),
 
-    # -- Partner-card mouse tracking: card drifts left/right with mouse position --
+    # -- Interactive zone: card drifts + button highlight follows mouse position --
     tags$script(HTML("
-      // When hovering over the 5-point placement row, the partner card physically
-      // shifts left/right proportional to the mouse X position in the row.
-      // This gives annotators a visual heuristic for how far left/right they
-      // intend to place the second tweet.
-      $(document).on('mousemove', '.placement-second-row', function(e) {
-        var $row   = $(this);
-        var relX   = (e.pageX - $row.offset().left) / $row.outerWidth();
-        var shift  = (relX - 0.5) * 80;   // ±40 px range
-        $row.find('.placement-partner-card').css('transform',
+      // Mouse moves over the interactive zone (partner card + 4 placement buttons):
+      //   1. Partner card shifts left/right proportionally (animation heuristic).
+      //   2. The placement button corresponding to the current X position is
+      //      highlighted so the user knows which response will be recorded on click.
+      // The active zone extends to the card edges, so the user can make decisions
+      // while reading the tweet text without moving the cursor to the buttons.
+      $(document).on('mousemove', '.placement-interactive-zone', function(e) {
+        var $zone  = $(this);
+        var relX   = (e.pageX - $zone.offset().left) / $zone.outerWidth();
+        relX = Math.max(0, Math.min(1, relX));   // clamp to [0, 1]
+
+        // Animate card: centre = 0.5, ±60px range
+        var shift = (relX - 0.5) * 120;
+        $zone.find('.placement-partner-card').css('transform',
           'translateX(' + shift + 'px)');
+
+        // Highlight the button that corresponds to this X position
+        var btnId = relX < 0.25 ? 'btn_1'
+                  : relX < 0.50 ? 'btn_2'
+                  : relX < 0.75 ? 'btn_3'
+                  :               'btn_4';
+        $zone.find('.placement-btn').removeClass('btn-hover-active');
+        $zone.find('#' + btnId).addClass('btn-hover-active');
       });
-      // Reset on mouse leave
-      $(document).on('mouseleave', '.placement-second-row', function() {
+
+      // Reset card position and button highlight on mouse leave
+      $(document).on('mouseleave', '.placement-interactive-zone', function() {
         $(this).find('.placement-partner-card').css('transform', '');
+        $(this).find('.placement-btn').removeClass('btn-hover-active');
       });
-      // Snap to center after a placement button click (card locks, then advances)
+
+      // Snap to centre + clear highlight after a response is recorded
       $(document).on('click', '.placement-btn, .placement-dk-quick-btn', function() {
         $('.placement-partner-card').css('transform', '');
+        $('.placement-btn').removeClass('btn-hover-active');
       });
     "))
   ),
@@ -1524,54 +1560,49 @@ server <- function(input, output, session) {
                   "…where would you place this tweet?")
             ),
 
-            # Partner card row (card only, animated left/right with mouse)
-            div(class = "placement-second-row",
-              div(class = "tweet-card placement-partner-card",
-                  p(meta$partner_text),
-                  div(class = "tweet-date", meta$partner_date))
-            ),
+            # Interactive zone: partner card + 4 buttons share one mouse-tracking container
+            div(class = "placement-interactive-zone",
+              # Partner card (animated left/right by JS mousemove)
+              div(class = "placement-second-row",
+                div(class = "tweet-card placement-partner-card",
+                    p(meta$partner_text),
+                    div(class = "tweet-date", meta$partner_date))
+              ),
 
-            # 4 placement buttons in a row below the partner card
-            div(class = "placement-5pt-row",
-              if (reveal) {
-                tagList(
-                  div(class = paste("placement-btn placement-btn-def-left reveal-mode",
-                                    if (is_def_left) "clicked" else ""),
-                      "Def.
-left"),
-                  div(class = paste("placement-btn placement-btn-arg-left reveal-mode",
-                                    if (is_arg_left) "clicked" else ""),
-                      "Arg.
-left"),
-                  div(class = paste("placement-btn placement-btn-arg-right reveal-mode",
-                                    if (is_arg_right) "clicked" else ""),
-                      "Arg.
-right"),
-                  div(class = paste("placement-btn placement-btn-def-right reveal-mode",
-                                    if (is_def_right) "clicked" else ""),
-                      "Def.
-right")
-                )
-              } else {
-                tagList(
-                  actionButton("btn_1", "Def.
-left",
-                    class = paste("placement-btn placement-btn-def-left",
-                                  if (is_def_left) "clicked" else "")),
-                  actionButton("btn_2", "Arg.
-left",
-                    class = paste("placement-btn placement-btn-arg-left",
-                                  if (is_arg_left) "clicked" else "")),
-                  actionButton("btn_3", "Arg.
-right",
-                    class = paste("placement-btn placement-btn-arg-right",
-                                  if (is_arg_right) "clicked" else "")),
-                  actionButton("btn_4", "Def.
-right",
-                    class = paste("placement-btn placement-btn-def-right",
-                                  if (is_def_right) "clicked" else ""))
-                )
-              }
+              # 4 placement buttons below the card
+              div(class = "placement-5pt-row",
+                if (reveal) {
+                  tagList(
+                    div(class = paste("placement-btn placement-btn-def-left reveal-mode",
+                                      if (is_def_left) "clicked" else ""),
+                        "Def. left"),
+                    div(class = paste("placement-btn placement-btn-arg-left reveal-mode",
+                                      if (is_arg_left) "clicked" else ""),
+                        "Arg. left"),
+                    div(class = paste("placement-btn placement-btn-arg-right reveal-mode",
+                                      if (is_arg_right) "clicked" else ""),
+                        "Arg. right"),
+                    div(class = paste("placement-btn placement-btn-def-right reveal-mode",
+                                      if (is_def_right) "clicked" else ""),
+                        "Def. right")
+                  )
+                } else {
+                  tagList(
+                    actionButton("btn_1", "Def. left",
+                      class = paste("placement-btn placement-btn-def-left",
+                                    if (is_def_left) "clicked" else "")),
+                    actionButton("btn_2", "Arg. left",
+                      class = paste("placement-btn placement-btn-arg-left",
+                                    if (is_arg_left) "clicked" else "")),
+                    actionButton("btn_3", "Arg. right",
+                      class = paste("placement-btn placement-btn-arg-right",
+                                    if (is_arg_right) "clicked" else "")),
+                    actionButton("btn_4", "Def. right",
+                      class = paste("placement-btn placement-btn-def-right",
+                                    if (is_def_right) "clicked" else ""))
+                  )
+                }
+              )
             ),
 
             # Don't Know row (hidden in reveal mode unless already saved as DK)
