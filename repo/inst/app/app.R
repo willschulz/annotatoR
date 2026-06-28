@@ -668,10 +668,22 @@ ui <- fluidPage(
       }
       .placement-second-row {
         display: flex;
-        align-items: stretch;      /* wrappers stretch to card height */
         justify-content: center;
-        gap: 8px;
         margin-top: 6px;
+      }
+      /* 4-button row below partner card (5-point layout) */
+      .placement-5pt-row {
+        display: flex;
+        gap: 8px;
+        width: 50vw;
+        max-width: 700px;
+        min-width: 280px;
+        margin-top: 0.6rem;
+      }
+      .placement-5pt-row .placement-btn {
+        flex: 1;
+        aspect-ratio: 1;
+        min-width: 0;
       }
       /* partner card (sits directly inside .placement-second-row) */
       .placement-partner-card {
@@ -1512,68 +1524,54 @@ server <- function(input, output, session) {
                   "…where would you place this tweet?")
             ),
 
-            # Second row: [Def-L] [Arg-L]  [partner card]  [Arg-R] [Def-R]
+            # Partner card row (card only, animated left/right with mouse)
             div(class = "placement-second-row",
-              style = "gap: 16px;",
-
-              # Left button group (side-by-side)
-              div(class = "placement-5pt-grp-left",
-                if (reveal) {
-                  tagList(
-                    div(class = paste("placement-btn placement-btn-def-left reveal-mode",
-                                      if (is_def_left) "clicked" else ""),
-                        "Def.
-left"),
-                    div(class = paste("placement-btn placement-btn-arg-left reveal-mode",
-                                      if (is_arg_left) "clicked" else ""),
-                        "Arg.
-left")
-                  )
-                } else {
-                  tagList(
-                    actionButton("btn_1", "Def.
-left",
-                      class = paste("placement-btn placement-btn-def-left",
-                                    if (is_def_left) "clicked" else "")),
-                    actionButton("btn_2", "Arg.
-left",
-                      class = paste("placement-btn placement-btn-arg-left",
-                                    if (is_arg_left) "clicked" else ""))
-                  )
-                }
-              ),
-
-              # Partner card
               div(class = "tweet-card placement-partner-card",
                   p(meta$partner_text),
-                  div(class = "tweet-date", meta$partner_date)),
+                  div(class = "tweet-date", meta$partner_date))
+            ),
 
-              # Right button group (side-by-side)
-              div(class = "placement-5pt-grp-right",
-                if (reveal) {
-                  tagList(
-                    div(class = paste("placement-btn placement-btn-arg-right reveal-mode",
-                                      if (is_arg_right) "clicked" else ""),
-                        "Arg.
+            # 4 placement buttons in a row below the partner card
+            div(class = "placement-5pt-row",
+              if (reveal) {
+                tagList(
+                  div(class = paste("placement-btn placement-btn-def-left reveal-mode",
+                                    if (is_def_left) "clicked" else ""),
+                      "Def.
+left"),
+                  div(class = paste("placement-btn placement-btn-arg-left reveal-mode",
+                                    if (is_arg_left) "clicked" else ""),
+                      "Arg.
+left"),
+                  div(class = paste("placement-btn placement-btn-arg-right reveal-mode",
+                                    if (is_arg_right) "clicked" else ""),
+                      "Arg.
 right"),
-                    div(class = paste("placement-btn placement-btn-def-right reveal-mode",
-                                      if (is_def_right) "clicked" else ""),
-                        "Def.
+                  div(class = paste("placement-btn placement-btn-def-right reveal-mode",
+                                    if (is_def_right) "clicked" else ""),
+                      "Def.
 right")
-                  )
-                } else {
-                  tagList(
-                    actionButton("btn_3", "Arg.
+                )
+              } else {
+                tagList(
+                  actionButton("btn_1", "Def.
+left",
+                    class = paste("placement-btn placement-btn-def-left",
+                                  if (is_def_left) "clicked" else "")),
+                  actionButton("btn_2", "Arg.
+left",
+                    class = paste("placement-btn placement-btn-arg-left",
+                                  if (is_arg_left) "clicked" else "")),
+                  actionButton("btn_3", "Arg.
 right",
-                      class = paste("placement-btn placement-btn-arg-right",
-                                    if (is_arg_right) "clicked" else "")),
-                    actionButton("btn_4", "Def.
+                    class = paste("placement-btn placement-btn-arg-right",
+                                  if (is_arg_right) "clicked" else "")),
+                  actionButton("btn_4", "Def.
 right",
-                      class = paste("placement-btn placement-btn-def-right",
-                                    if (is_def_right) "clicked" else ""))
-                  )
-                }
-              )
+                    class = paste("placement-btn placement-btn-def-right",
+                                  if (is_def_right) "clicked" else ""))
+                )
+              }
             ),
 
             # Don't Know row (hidden in reveal mode unless already saved as DK)
