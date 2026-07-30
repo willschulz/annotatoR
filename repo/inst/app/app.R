@@ -1138,14 +1138,37 @@ server <- function(input, output, session) {
         )
       } else {
         # Clickable / reveal button
+        white_space <- as.character(get_value(btn$whiteSpace, "nowrap"))
+        wrap_label <- identical(tolower(white_space), "normal")
+        geometry_style <- if (wrap_label) {
+          sprintf(
+            paste0(
+              "border-radius: %s; padding: %s; margin: %s; border: %s; ",
+              "width: %s; height: %s; min-width: %s; min-height: %s; ",
+              "max-width: %s; max-height: %s; aspect-ratio: auto;"
+            ),
+            get_value(btn$borderRadius, "8px"),
+            get_value(btn$padding, "10px"),
+            get_value(btn$margin, "4px"),
+            get_value(btn$border, "1px solid #d0d7de"),
+            get_value(btn$width, "auto"),
+            get_value(btn$height, "auto"),
+            get_value(btn$minWidth, "150px"),
+            get_value(btn$minHeight, "60px"),
+            get_value(btn$maxWidth, "260px"),
+            get_value(btn$maxHeight, "none")
+          )
+        } else {
+          ""
+        }
         button_style <- sprintf("
-          background-color: %s; color: %s; border-radius: 50%%;
-          padding: 0; display: flex; flex-direction: column;
+          background-color: %s; color: %s; display: flex; flex-direction: column;
           justify-content: center; align-items: center; gap: 8px;
-          %s %s
+          %s %s %s
         ",
           get_value(btn$backgroundColor, "#ffffff"),
           get_value(btn$color, "#000000"),
+          geometry_style,
           if (reveal_mode) "cursor: default;" else "",
           if (reveal_mode) "pointer-events: none;" else ""
         )
@@ -1158,7 +1181,15 @@ server <- function(input, output, session) {
         inner <- div(
           style = "display: flex; flex-direction: column; align-items: center; gap: 4px;",
           icon(label_icon),
-          span(label_text)
+          span(
+            style = sprintf(
+              "white-space:%s; overflow:%s; text-overflow:%s; max-width:100%%;",
+              white_space,
+              if (wrap_label) "visible" else "hidden",
+              if (wrap_label) "clip" else "ellipsis"
+            ),
+            label_text
+          )
         )
 
         if (reveal_mode) {
@@ -1170,7 +1201,16 @@ server <- function(input, output, session) {
           button_list[[i]] <- div(
             style = "display: flex; flex-direction: column; align-items: center;",
             actionButton(paste0("btn_", i), inner,
-                         style = button_style, class = cls)
+                         style = button_style, class = cls,
+                         onclick = if (i > 4) {
+                           sprintf(
+                             paste0(
+                               "Shiny.setInputValue('generic_annotation_choice', ",
+                               "%d, {priority: 'event'});"
+                             ),
+                             i
+                           )
+                         } else NULL)
           )
         }
       }
@@ -1237,7 +1277,7 @@ server <- function(input, output, session) {
       div(class = "mainpanel-container",
           mainPanel(class = "mainpanel",
                     uiOutput("project_selector"),
-                    div(style = "position: relative;",
+                    div(style = "position: relative; padding-right: 110px;",
                         h2(htmlOutput("displayInstruction")),
                         actionButton("toggle_sidebar", "Instructions",
                                      class = "sidebar-toggle")
@@ -1654,11 +1694,15 @@ server <- function(input, output, session) {
         } else {
           div(
             style = sprintf(
-              "display:%s; justify-content:%s; align-items:%s; gap:%s;",
+              paste0(
+                "display:%s; justify-content:%s; align-items:%s; ",
+                "gap:%s; flex-wrap:%s;"
+              ),
               get_value(layout$display, "flex"),
               get_value(layout$justifyContent, "center"),
               get_value(layout$alignItems, "center"),
-              get_value(layout$gap, "40px")
+              get_value(layout$gap, "40px"),
+              get_value(layout$flexWrap, "nowrap")
             ),
             create_annotation_buttons(
               layout, labels,
@@ -1738,12 +1782,14 @@ server <- function(input, output, session) {
     # ---- Generic annotation handler --------------------------------------
     handle_annotation <- function(btn_index) {
       if (values$index > nrow(values$data)) return()
+      if (length(btn_index) != 1 || is.na(btn_index) || btn_index < 1) return()
 
       # Ignore clicks in reveal mode
       rm_val <- as.logical(values$data[values$index, "reveal_mode"])
       if (!is.na(rm_val) && rm_val) return()
 
       current_labels <- fromJSON(values$data$annotation_labels[values$index])
+      if (btn_index > length(current_labels$text)) return()
       selected_label <- current_labels$text[btn_index]
 
       values$data[values$index, "annotation_response"] <- selected_label
@@ -1779,6 +1825,9 @@ server <- function(input, output, session) {
       }
     }
 
+    observeEvent(input$generic_annotation_choice, {
+      handle_annotation(suppressWarnings(as.integer(input$generic_annotation_choice)))
+    }, ignoreInit = TRUE)
     observeEvent(input$btn_1, handle_annotation(1))
     observeEvent(input$btn_2, handle_annotation(2))
     observeEvent(input$btn_3, handle_annotation(3))
