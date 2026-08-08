@@ -36,7 +36,7 @@ lock_shared_artifacts() {
   local flag="$1"
   ssh "$TRUENAS" "
     for path in '$SHARED_R_LIB_TRUENAS' '$SHARED_CLI_DIR_TRUENAS'; do
-      if [ -d \"\$path\" ]; then chattr -R '$flag' \"\$path\"; fi
+      if [ -d \"\$path\" ]; then /usr/bin/chattr -R '$flag' \"\$path\"; fi
     done
   "
 }
@@ -65,8 +65,8 @@ echo "=== [3/5] Reinstalling R package (devtools::install) ==="
 ssh "$HYDRIA" "bash -lc 'Rscript -e \"devtools::install(\\\"$REPO_DIR/repo/\\\")\" 2>&1 | tail -5'"
 
 echo "=== [4/5] Publishing collaborator R library and CLI ==="
-lock_shared_artifacts "-i"
 shared_artifacts_unlocked=1
+lock_shared_artifacts "-i"
 ssh "$HYDRIA" "bash -lc 'Rscript $REPO_DIR/repo/inst/service/install_shared_library.R $SHARED_R_LIB'"
 ssh "$HYDRIA" "bash -lc '
   set -e
