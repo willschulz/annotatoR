@@ -4,6 +4,9 @@ state/
 # Append-only label exports
 exports/
 
+# Published collaborator package library
+r-library/
+
 # Log files at any level
 *.log
 
