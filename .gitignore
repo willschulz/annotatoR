@@ -7,6 +7,9 @@ exports/
 # Published collaborator package library
 r-library/
 
+# Published collaborator command-line tools
+bin/
+
 # Log files at any level
 *.log
 

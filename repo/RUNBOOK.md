@@ -191,6 +191,49 @@ annotator_export_csv(
 Project filtering composes with `instruction_hash`, `annotators`, and
 `completed_only`. The CSV helper returns its output path invisibly.
 
+### Command-line exports (no R required)
+
+The dependency-free `annotator-export` command provides the same read-only,
+parameterized project filtering from Python's standard library:
+
+```bash
+# Show exact project titles and total/completed counts
+annotator-export --list-projects
+
+# Completed rows, CSV, timestamped file in the current directory
+annotator-export --project "Elite Rhetoric Scaling"
+
+# Infer JSONL from the output suffix
+annotator-export \
+  --project "CAP Tweet Topic Validation" \
+  --output cap_topic_labels.jsonl
+
+# Stream TSV to another command
+annotator-export \
+  --project "Elite Rhetoric Scaling" \
+  --format tsv --output - |
+  gzip > elite_rhetoric_labels.tsv.gz
+```
+
+Supported formats are `csv`, `tsv`, `json`, and `jsonl`. Use repeatable
+`--project`, `--annotator`, or `--instruction-hash` options to combine filter
+values. Exports include completed rows by default; add `--include-incomplete`
+to include rows whose `annotation_response` is `NULL`. JSON-valued database
+columns remain strings so every format preserves the same raw values.
+
+Files are written through a temporary file and atomically renamed.
+`--output -` writes directly to stdout. The live database path is the
+default; `--db` exists for testing or an alternate database.
+
+The deployed executable is:
+
+```
+/srv/projects/tools/annotatoR/bin/annotator-export
+```
+
+Collaborators normally symlink it into `~/.local/bin`; Ubuntu's default
+`~/.profile` adds that directory to `PATH` when it exists.
+
 ### Shared R installation for collaborators
 
 The deployment maintains a read-only R 4.5 package library at:
@@ -211,10 +254,11 @@ local({
 
 After starting a new R session, `library(annotatoR)` should work without a
 per-user package installation. The normal AnnotatoR deploy refreshes the
-shared library after installing the service package. The deploy then applies a
-recursive immutable flag from TrueNAS because the NFS export maps clients to a
-shared owner identity; POSIX mode bits alone do not prevent collaborator
-writes. Do not manually edit the published library from datascience.
+shared library and CLI after installing the service package. The deploy then
+applies recursive immutable flags from TrueNAS because the NFS export maps
+clients to a shared owner identity; POSIX mode bits alone do not prevent
+collaborator writes. Do not manually edit published artifacts from
+datascience.
 
 ---
 
