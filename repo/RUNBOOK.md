@@ -146,16 +146,72 @@ annotator_add_user("alice@example.com", display_name = "Alice",
 
 ## Exporting labels
 
+Exports use a read-only SQLite connection and can be filtered by one or more
+project names. Collaborators should use the absolute `/srv/projects` DB path:
+their `~/projects` symlink is a curated project view and does not contain
+`tools/annotatoR`.
+
 ```r
 library(annotatoR)
-db <- "~/projects/tools/annotatoR/state/annotatoR.sqlite"
+db <- "/srv/projects/tools/annotatoR/state/annotatoR.sqlite"
 
-# As a data frame
-labels <- annotator_export(db_path = db, completed_only = TRUE)
+# One project as a data frame (all annotators in that project)
+labels <- annotator_export(
+  db_path = db,
+  projects = "Elite Rhetoric Scaling",
+  completed_only = TRUE
+)
 
-# Or write a timestamped CSV to exports/
-annotator_export_csv(db_path = db, completed_only = TRUE)
+# Several projects can be selected together
+labels <- annotator_export(
+  db_path = db,
+  projects = c("Elite Rhetoric Scaling", "CAP Tweet Topic Validation"),
+  completed_only = TRUE
+)
+
+# Add annotators= to select only one person's rows
+perry_labels <- annotator_export(
+  db_path = db,
+  projects = "Elite Rhetoric Scaling",
+  annotators = "pjesscarter@github",
+  completed_only = TRUE
+)
+
+# Write a timestamped CSV into a collaborator-writable project directory
+annotator_export_csv(
+  db_path = db,
+  projects = "CAP Tweet Topic Validation",
+  completed_only = TRUE,
+  exports_dir = "~/projects/elite_rhetoric_scaling/labels_archive",
+  prefix = "cap_topic_labels"
+)
 ```
+
+`projects` must be `NULL` (all projects) or a non-empty character vector.
+Project filtering composes with `instruction_hash`, `annotators`, and
+`completed_only`. The CSV helper returns its output path invisibly.
+
+### Shared R installation for collaborators
+
+The deployment maintains a read-only R 4.5 package library at:
+
+```
+/srv/projects/tools/annotatoR/r-library/4.5
+```
+
+Each collaborator who needs the R API adds it to `.libPaths()` once in
+`~/.Rprofile`:
+
+```r
+local({
+  annotator_lib <- "/srv/projects/tools/annotatoR/r-library/4.5"
+  if (dir.exists(annotator_lib)) .libPaths(c(annotator_lib, .libPaths()))
+})
+```
+
+After starting a new R session, `library(annotatoR)` should work without a
+per-user package installation. The normal AnnotatoR deploy refreshes the
+shared library after installing the service package.
 
 ---
 

@@ -1,15 +1,15 @@
-#' @title Export annotation data
-#' @description Functions to export labels and audit events as tidy data frames
-#'   or CSV files for downstream analysis.
-#' @import DBI dplyr
-#' @keywords internal
+# Export helpers intentionally use a read-only SQLite connection. Keep all
+# mutating package operations on annotator_connect_plain().
 
 #' Export annotation labels
 #'
-#' Returns a tidy data frame of all annotation items, optionally filtered by
-#' instruction hash, annotator, or completion status.
+#' Returns a tidy data frame of annotation items, optionally filtered by
+#' project, instruction hash, annotator, or completion status. The database is
+#' always opened read-only.
 #'
 #' @param db_path Path to the SQLite file (default: auto-resolved).
+#' @param projects Optional character vector of project names to include.
+#'   `NULL` means all projects.
 #' @param instruction_hash Optional character vector of instruction hashes to
 #'   include. `NULL` means all.
 #' @param annotators Optional character vector of annotator emails to include.
@@ -19,14 +19,31 @@
 #' @return A tibble.
 #' @export
 annotator_export <- function(db_path = NULL,
+                              projects = NULL,
                               instruction_hash = NULL,
                               annotators = NULL,
                               completed_only = FALSE) {
-  con <- annotator_connect_plain(db_path)
+  if (!is.null(projects)) {
+    if (!is.character(projects) || length(projects) == 0L ||
+        anyNA(projects) || any(!nzchar(trimws(projects)))) {
+      stop(
+        "`projects` must be NULL or a non-empty character vector of project names.",
+        call. = FALSE
+      )
+    }
+  }
+
+  con <- annotator_connect_readonly(db_path)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
   query <- "SELECT * FROM items WHERE 1=1"
   params <- list()
+
+  if (!is.null(projects)) {
+    placeholders <- paste(rep("?", length(projects)), collapse = ", ")
+    query <- paste0(query, " AND project IN (", placeholders, ")")
+    params <- c(params, as.list(projects))
+  }
 
   if (!is.null(instruction_hash)) {
     placeholders <- paste(rep("?", length(instruction_hash)), collapse = ", ")
@@ -46,7 +63,11 @@ annotator_export <- function(db_path = NULL,
 
   query <- paste0(query, " ORDER BY annotator_id, created_at")
 
-  result <- DBI::dbGetQuery(con, query, params = params)
+  result <- if (length(params) > 0L) {
+    DBI::dbGetQuery(con, query, params = params)
+  } else {
+    DBI::dbGetQuery(con, query)
+  }
   dplyr::as_tibble(result)
 }
 
@@ -60,7 +81,7 @@ annotator_export <- function(db_path = NULL,
 #' @return A tibble.
 #' @keywords internal
 annotator_export_events <- function(db_path = NULL, since = NULL) {
-  con <- annotator_connect_plain(db_path)
+  con <- annotator_connect_readonly(db_path)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
   if (!is.null(since)) {
@@ -83,8 +104,9 @@ annotator_export_events <- function(db_path = NULL, since = NULL) {
 #' @inheritParams annotator_export
 #' @param exports_dir Path to the exports directory (default: auto-resolved).
 #' @param prefix Filename prefix (default `"labels"`).
+#' @param ... Additional filtering arguments passed to [annotator_export()].
 #' @return Invisibly, the path to the written CSV file.
-#' @keywords internal
+#' @export
 annotator_export_csv <- function(db_path = NULL,
                                   exports_dir = NULL,
                                   prefix = "labels",

@@ -9,8 +9,9 @@
 #      would cause git pull to fail silently).
 #   2. Pulls the latest main from GitHub into ~/projects/tools/annotatoR/ on hydria.
 #   3. Reinstalls the R package (~2-3 min).
-#   4. Restarts annotator.service (no password required — see /etc/sudoers.d/annotator-restart).
-#   5. Verifies the service is active.
+#   4. Publishes annotatoR + dependencies to the collaborator-readable R library.
+#   5. Restarts annotator.service (no password required — see /etc/sudoers.d/annotator-restart).
+#   6. Verifies the service is active.
 #
 # Assumes:
 #   - You have already committed and pushed your changes: git push origin main
@@ -24,8 +25,9 @@ set -euo pipefail
 HYDRIA="wschulz@100.65.14.50"
 REPO_DIR="~/projects/tools/annotatoR"
 INSTALLED_PKG="~/R/x86_64-pc-linux-gnu-library/4.5/annotatoR"
+SHARED_R_LIB="/srv/projects/tools/annotatoR/r-library/4.5"
 
-echo "=== [1/4] Checking NAS-side repo for unexpected local edits ==="
+echo "=== [1/5] Checking NAS-side repo for unexpected local edits ==="
 dirty=$(ssh "$HYDRIA" "bash -lc 'cd $REPO_DIR && git status --short'")
 if [ -n "$dirty" ]; then
   echo "WARNING: NAS repo has local modifications:"
@@ -35,13 +37,16 @@ if [ -n "$dirty" ]; then
   [[ "${confirm,,}" == "y" ]] || { echo "Aborted."; exit 1; }
 fi
 
-echo "=== [2/4] Pulling latest main from GitHub ==="
+echo "=== [2/5] Pulling latest main from GitHub ==="
 ssh "$HYDRIA" "bash -lc 'cd $REPO_DIR && git pull origin main 2>&1'"
 
-echo "=== [3/4] Reinstalling R package (devtools::install) ==="
+echo "=== [3/5] Reinstalling R package (devtools::install) ==="
 ssh "$HYDRIA" "bash -lc 'Rscript -e \"devtools::install(\\\"$REPO_DIR/repo/\\\")\" 2>&1 | tail -5'"
 
-echo "=== [4/4] Restarting annotator.service ==="
+echo "=== [4/5] Publishing collaborator R library ==="
+ssh "$HYDRIA" "bash -lc 'Rscript $REPO_DIR/repo/inst/service/install_shared_library.R $SHARED_R_LIB'"
+
+echo "=== [5/5] Restarting annotator.service ==="
 ssh "$HYDRIA" 'sudo systemctl restart annotator'
 
 echo "=== Verifying ==="

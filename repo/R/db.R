@@ -76,6 +76,30 @@ annotator_connect_plain <- function(db_path = NULL) {
   con
 }
 
+#' Open a read-only SQLite connection
+#'
+#' Used by retrieval helpers that must never initialize, migrate, or otherwise
+#' modify the annotation database.
+#'
+#' @param db_path Path to an existing SQLite file.
+#' @return A read-only `DBIConnection`.
+#' @keywords internal
+annotator_connect_readonly <- function(db_path = NULL) {
+  db_path <- annotator_db_path(db_path)
+  if (!file.exists(db_path)) {
+    stop("Annotation database does not exist: ", db_path, call. = FALSE)
+  }
+
+  con <- DBI::dbConnect(
+    RSQLite::SQLite(),
+    dbname = db_path,
+    flags = RSQLite::SQLITE_RO
+  )
+  DBI::dbExecute(con, "PRAGMA busy_timeout = 5000;")
+  DBI::dbExecute(con, "PRAGMA query_only = ON;")
+  con
+}
+
 # ---------------------------------------------------------------------------
 # Schema
 # ---------------------------------------------------------------------------
