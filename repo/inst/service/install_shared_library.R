@@ -10,6 +10,8 @@ shared_lib <- if (length(args) >= 1L) {
 } else {
   "/srv/projects/tools/annotatoR/r-library/4.5"
 }
+refresh_dependencies <- length(args) >= 2L &&
+  identical(args[[2]], "--refresh-dependencies")
 
 dir.create(shared_lib, recursive = TRUE, showWarnings = FALSE)
 if (!dir.exists(shared_lib)) {
@@ -38,6 +40,11 @@ packages <- packages[is.na(priority) | !nzchar(priority)]
 publish_package <- function(package) {
   source <- find.package(package)
   destination <- file.path(shared_lib, package)
+  if (package != "annotatoR" && dir.exists(destination) &&
+      !refresh_dependencies) {
+    message("retained ", package)
+    return(invisible(NULL))
+  }
   staging <- file.path(
     shared_lib,
     sprintf(".%s-new-%d", package, Sys.getpid())
@@ -69,8 +76,9 @@ publish_package <- function(package) {
     stop("Failed to stage shared R package: ", package)
   }
 
-  # Preserve required execute bits while ensuring collaborators cannot modify
-  # the published package tree.
+  # Preserve required execute bits and remove ordinary write bits. The deploy
+  # wrapper additionally applies a recursive immutable flag on TrueNAS because
+  # this NFS export maps all clients to the same owning UID.
   status <- system2("chmod", c("-R", "a+rX,go-w", staging))
   if (!identical(status, 0L)) {
     unlink(staging, recursive = TRUE, force = TRUE)

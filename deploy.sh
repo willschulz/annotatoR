@@ -23,9 +23,20 @@
 set -euo pipefail
 
 HYDRIA="wschulz@100.65.14.50"
+TRUENAS="root@100.108.222.2"
 REPO_DIR="~/projects/tools/annotatoR"
 INSTALLED_PKG="~/R/x86_64-pc-linux-gnu-library/4.5/annotatoR"
 SHARED_R_LIB="/srv/projects/tools/annotatoR/r-library/4.5"
+SHARED_R_LIB_TRUENAS="/mnt/tank/projects/active/tools/annotatoR/r-library/4.5"
+
+shared_library_unlocked=0
+relock_shared_library() {
+  if [ "$shared_library_unlocked" -eq 1 ]; then
+    echo "=== Relocking collaborator R library after interrupted deploy ==="
+    ssh "$TRUENAS" "chattr -R +i '$SHARED_R_LIB_TRUENAS'" || true
+  fi
+}
+trap relock_shared_library EXIT
 
 echo "=== [1/5] Checking NAS-side repo for unexpected local edits ==="
 dirty=$(ssh "$HYDRIA" "bash -lc 'cd $REPO_DIR && git status --short'")
@@ -44,7 +55,11 @@ echo "=== [3/5] Reinstalling R package (devtools::install) ==="
 ssh "$HYDRIA" "bash -lc 'Rscript -e \"devtools::install(\\\"$REPO_DIR/repo/\\\")\" 2>&1 | tail -5'"
 
 echo "=== [4/5] Publishing collaborator R library ==="
+ssh "$TRUENAS" "if [ -d '$SHARED_R_LIB_TRUENAS' ]; then chattr -R -i '$SHARED_R_LIB_TRUENAS'; fi"
+shared_library_unlocked=1
 ssh "$HYDRIA" "bash -lc 'Rscript $REPO_DIR/repo/inst/service/install_shared_library.R $SHARED_R_LIB'"
+ssh "$TRUENAS" "chattr -R +i '$SHARED_R_LIB_TRUENAS'"
+shared_library_unlocked=0
 
 echo "=== [5/5] Restarting annotator.service ==="
 ssh "$HYDRIA" 'sudo systemctl restart annotator'

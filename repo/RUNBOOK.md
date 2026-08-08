@@ -211,7 +211,10 @@ local({
 
 After starting a new R session, `library(annotatoR)` should work without a
 per-user package installation. The normal AnnotatoR deploy refreshes the
-shared library after installing the service package.
+shared library after installing the service package. The deploy then applies a
+recursive immutable flag from TrueNAS because the NFS export maps clients to a
+shared owner identity; POSIX mode bits alone do not prevent collaborator
+writes. Do not manually edit the published library from datascience.
 
 ---
 
