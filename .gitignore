@@ -25,6 +25,8 @@ repo/*.Rcheck/
 
 # OS / editor
 .DS_Store
+__pycache__/
+*.py[cod]
 .Rhistory
 .RData
 .Rproj.user
