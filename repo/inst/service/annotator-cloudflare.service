@@ -4,11 +4,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=wschulz
 WorkingDirectory=/tmp
 Environment=ANNOTATOR_DB=/home/wschulz/projects/tools/annotatoR/state/annotatoR.sqlite
 Environment=ANNOTATOR_CF_ACCESS_ENABLED=true
-EnvironmentFile=/etc/annotator/cloudflare-access.env
+EnvironmentFile=%h/.config/annotator/cloudflare-access.env
 ExecStart=/usr/bin/Rscript -e "library(annotatoR); annotator_run_app(port = 3841L, host = '127.0.0.1')"
 Restart=on-failure
 RestartSec=5

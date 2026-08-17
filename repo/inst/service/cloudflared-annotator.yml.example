@@ -1,5 +1,5 @@
 tunnel: REPLACE_WITH_TUNNEL_UUID
-credentials-file: /etc/cloudflared-annotator/REPLACE_WITH_TUNNEL_UUID.json
+credentials-file: /home/wschulz/.config/cloudflared-annotator/REPLACE_WITH_TUNNEL_UUID.json
 
 loglevel: info
 transport-loglevel: warn

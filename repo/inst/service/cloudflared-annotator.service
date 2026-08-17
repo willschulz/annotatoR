@@ -6,8 +6,7 @@ Requires=annotator-cloudflare.service
 
 [Service]
 Type=notify
-User=cloudflared
-ExecStart=/usr/bin/cloudflared --no-autoupdate --config /etc/cloudflared-annotator/config.yml tunnel run
+ExecStart=%h/.local/bin/cloudflared --no-autoupdate --config %h/.config/cloudflared-annotator/config.yml tunnel run
 Restart=on-failure
 RestartSec=5s
 TimeoutStartSec=0
