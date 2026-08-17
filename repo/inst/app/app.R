@@ -65,6 +65,19 @@ COOKIE_SECRET <- trimws(readLines(cookie_secret_path, n = 1, warn = FALSE))
 COOKIE_NAME   <- "annotator_token"
 COOKIE_MAX_AGE <- 60 * 60 * 24 * 90  # 90 days
 
+# ---- Optional Cloudflare Access identity mode ----------------------------
+CF_ACCESS_ENABLED <- tolower(trimws(
+  Sys.getenv("ANNOTATOR_CF_ACCESS_ENABLED", unset = "false")
+)) %in% c("1", "true", "yes")
+CF_ACCESS_IDENTITY_MAP <- Sys.getenv(
+  "ANNOTATOR_CF_ACCESS_IDENTITY_MAP",
+  unset = ""
+)
+if (CF_ACCESS_ENABLED) {
+  # Fail during startup rather than exposing a login form with bad config.
+  annotatoR:::parse_cloudflare_identity_map(CF_ACCESS_IDENTITY_MAP)
+}
+
 # ---- Cookie helpers -------------------------------------------------------
 make_token <- function(user_id) {
   expiry <- as.integer(Sys.time()) + COOKIE_MAX_AGE
@@ -1014,27 +1027,47 @@ server <- function(input, output, session) {
 
   user_auth <- reactiveVal(FALSE)
   user_info <- reactiveVal(NULL)
+  identity_checked <- reactiveVal(FALSE)
 
   # ---- Helper: complete login -------------------------------------------
-  do_login <- function(user_id, source = "manual") {
+  do_login <- function(user_id, source = "manual", persist_cookie = TRUE) {
     ensure_user(pool, user_id, auth_source = source)
     user_auth(TRUE)
     user_info(list(user = user_id))
 
-    # Set persistent cookie
-    token <- make_token(user_id)
-    session$sendCustomMessage("set_cookie", list(
-      name   = COOKIE_NAME,
-      value  = token,
-      maxAge = COOKIE_MAX_AGE
-    ))
+    if (persist_cookie) {
+      token <- make_token(user_id)
+      session$sendCustomMessage("set_cookie", list(
+        name   = COOKIE_NAME,
+        value  = token,
+        maxAge = COOKIE_MAX_AGE
+      ))
+    }
   }
 
-  # ---- Auto-login: Tailscale header or cookie ----------------------------
+  # ---- Auto-login: isolated Cloudflare mode, Tailscale, or cookie --------
   observeEvent(input$`_cookie_token`, {
     if (user_auth()) return()  # already logged in
 
-    # 1) Tailscale identity header (set by Tailscale Serve)
+    # The public-only process trusts this header because its localhost port is
+    # reachable solely through the Access-protected dedicated tunnel.
+    if (CF_ACCESS_ENABLED) {
+      cf_email <- session$request$HTTP_CF_ACCESS_AUTHENTICATED_USER_EMAIL
+      mapped_user <- annotatoR:::resolve_cloudflare_identity(
+        cf_email,
+        CF_ACCESS_IDENTITY_MAP
+      )
+      identity_checked(TRUE)
+      if (is.null(mapped_user)) {
+        message("annotatoR: Cloudflare Access identity missing or not mapped")
+        return()
+      }
+      message("annotatoR: auto-login via Cloudflare Access: ", mapped_user)
+      do_login(mapped_user, source = "cloudflare", persist_cookie = FALSE)
+      return()
+    }
+
+    # Tailscale identity header (set by Tailscale Serve)
     ts_user <- session$request$HTTP_TAILSCALE_USER_LOGIN
     if (!is.null(ts_user) && nzchar(ts_user)) {
       message("annotatoR: auto-login via Tailscale header: ", ts_user)
@@ -1052,6 +1085,7 @@ server <- function(input, output, session) {
         return()
       }
     }
+    identity_checked(TRUE)
   }, once = TRUE)
 
   # ---- Emoji font probe: log whether emoji rendered on client -----------
@@ -1064,6 +1098,7 @@ server <- function(input, output, session) {
 
   # ---- Manual login button -----------------------------------------------
   observeEvent(input$login_button, {
+    if (CF_ACCESS_ENABLED) return()
     email <- trimws(input$user_name)
     if (!nzchar(email)) return()
 
@@ -1223,6 +1258,20 @@ server <- function(input, output, session) {
 
     # Not logged in -> show login form
     if (!user_auth()) {
+      if (CF_ACCESS_ENABLED) {
+        if (!identity_checked()) {
+          return(div(
+            id = "login_panel",
+            h3("Verifying secure access…")
+          ))
+        }
+        return(div(
+          id = "login_panel",
+          h3("Access not authorized"),
+          p("Your verified Cloudflare Access identity is not assigned here."),
+          p("Please contact the project administrator.")
+        ))
+      }
       return(div(id = "login_panel",
         div(
           style = "text-align: center; width: 300px; max-width: 100%; margin: 0 auto; padding: 20px;",
