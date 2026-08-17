@@ -17,4 +17,4 @@ StandardOutput=append:/home/wschulz/projects/tools/annotatoR/state/logs/annotato
 StandardError=append:/home/wschulz/projects/tools/annotatoR/state/logs/annotator-cloudflare.log
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
