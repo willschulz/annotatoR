@@ -299,6 +299,35 @@ get_value <- function(x, default) {
   if (is.null(x) || length(x) == 0) default else x
 }
 
+# ---- 5-point Don't Know reason configuration ------------------------------
+default_dk_reasons <- function() {
+  data.frame(
+    id = c("ideol_nodiff", "nonideol", "topics_different"),
+    label = c(
+      "Ideological, no difference",
+      "Both non-ideological",
+      "These topics are too different"
+    ),
+    response = c(
+      "Don't Know: ideological, no difference",
+      "Don't Know: both non-ideological",
+      "Don't Know: these topics are too different"
+    ),
+    key = c("5", "6", "7"),
+    stringsAsFactors = FALSE
+  )
+}
+
+get_dk_reasons <- function(layout) {
+  reasons <- layout$dk_reasons
+  required <- c("id", "label", "response", "key")
+  if (is.null(reasons) || !is.data.frame(reasons) ||
+      !all(required %in% names(reasons)) || nrow(reasons) == 0) {
+    return(default_dk_reasons())
+  }
+  reasons[, required, drop = FALSE]
+}
+
 # ---- Pair metadata extractor for relative_side format --------------------
 # annotation_html for this format embeds:
 #   <script type="application/json" id="pair-meta">{...}</script>
@@ -826,6 +855,19 @@ ui <- fluidPage(
         transition: background-color 0.2s ease;
       }
       .placement-dk-btn:hover { background-color: #666; }
+      .placement-dk-prompt {
+        color: #555;
+        font-size: 0.95em;
+        font-weight: 600;
+        text-align: center;
+      }
+      .placement-dk-other-label {
+        align-self: flex-start;
+        color: #666;
+        font-size: 0.85em;
+        font-weight: 600;
+        margin-top: 4px;
+      }
       .placement-dk-submit {
         background-color: #444;
         color: white;
@@ -839,6 +881,15 @@ ui <- fluidPage(
         transition: background-color 0.2s ease;
       }
       .placement-dk-submit:hover { background-color: #222; }
+      .placement-dk-cancel {
+        background: transparent;
+        color: #666;
+        border: 1px solid #bbb;
+        border-radius: 8px;
+        padding: 6px 16px;
+        cursor: pointer;
+      }
+      .placement-dk-cancel:hover { background-color: #eee; }
       .placement-dk-row textarea {
         width: 100%;
         border-radius: 6px;
@@ -850,6 +901,7 @@ ui <- fluidPage(
       /* Quick DK shortcut buttons (one-click categorical reasons) */
       .placement-dk-quick-row {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
         width: 100%;
         justify-content: center;
@@ -864,8 +916,9 @@ ui <- fluidPage(
         font-weight: 600;
         cursor: pointer;
         flex: 1;
+        min-width: 180px;
         transition: background-color 0.2s ease;
-        white-space: nowrap;
+        white-space: normal;
       }
       .placement-dk-quick-btn:hover { background-color: #888; }
       .placement-dk-quick-btn.dk-quick-selected {
@@ -1093,7 +1146,10 @@ server <- function(input, output, session) {
     w <- input$emoji_probe_width
     rendered <- if (!is.null(w) && w > 0) "YES" else "NO"
     uid <- if (!is.null(user_info())) user_info()$user else "(pre-login)"
-    message(sprintf("[emoji_probe] user=%s width=%.1f rendered=%s", uid, w %||% -1, rendered))
+    message(sprintf(
+      "[emoji_probe] user=%s width=%.1f rendered=%s",
+      uid, get_value(w, -1), rendered
+    ))
   }, ignoreNULL = TRUE)
 
   # ---- Manual login button -----------------------------------------------
@@ -1630,12 +1686,10 @@ server <- function(input, output, session) {
           dk_saved_text <- if (is_dk && nchar(resp) > nchar("Don't Know: "))
                              substr(resp, nchar("Don't Know: ") + 1L, nchar(resp))
                            else ""
-          reveal   <- isTRUE(as.logical(current$reveal_mode))
-          is_dk_quick <- is_dk && resp %in% c(
-            "Don't Know: ideological, no difference",
-            "Don't Know: both non-ideological"
-          )
-          show_dk  <- isTRUE(values$show_dk_input) || (is_dk && !is_dk_quick)
+          reveal      <- isTRUE(as.logical(current$reveal_mode))
+          dk_reasons   <- get_dk_reasons(layout)
+          is_dk_quick  <- is_dk && resp %in% dk_reasons$response
+          show_dk      <- isTRUE(values$show_dk_input) || is_dk
 
           div(class = "placement-vertical-container",
             # Anchor card
@@ -1706,34 +1760,47 @@ server <- function(input, output, session) {
                     else "Don't Know"))
             } else if (!reveal) {
               div(class = "placement-dk-row",
-                # Quick categorical DK shortcuts (one-click, auto-advance)
-                div(class = "placement-dk-quick-row",
-                  actionButton("btn_dk_ideol_nodiff",
-                    "Ideological, no difference",
-                    class = paste("placement-dk-quick-btn btn",
-                      if (isTRUE(is_dk_quick) &&
-                          resp == "Don't Know: ideological, no difference")
-                        "dk-quick-selected" else "")),
-                  actionButton("btn_dk_nonideol",
-                    "Both non-ideological",
-                    class = paste("placement-dk-quick-btn btn",
-                      if (isTRUE(is_dk_quick) &&
-                          resp == "Don't Know: both non-ideological")
-                        "dk-quick-selected" else ""))
-                ),
-                # Open-ended Don't Know (two-step: click → textarea → submit)
                 if (!show_dk) {
-                  actionButton("btn_dk", "? Don't Know",
+                  actionButton("btn_dk", "? Don't Know (5)",
                     class = "placement-dk-btn btn")
                 } else {
                   tagList(
+                    div(class = "placement-dk-prompt",
+                        "Why can't these tweets be compared ideologically?"),
+                    # Categorical reasons are shown only after Don't Know.
+                    div(class = "placement-dk-quick-row",
+                      actionButton("btn_dk_ideol_nodiff",
+                        dk_reasons$label[dk_reasons$id == "ideol_nodiff"][1],
+                        class = paste("placement-dk-quick-btn btn",
+                          if (isTRUE(is_dk_quick) &&
+                              resp == dk_reasons$response[
+                                dk_reasons$id == "ideol_nodiff"][1])
+                            "dk-quick-selected" else "")),
+                      actionButton("btn_dk_nonideol",
+                        dk_reasons$label[dk_reasons$id == "nonideol"][1],
+                        class = paste("placement-dk-quick-btn btn",
+                          if (isTRUE(is_dk_quick) &&
+                              resp == dk_reasons$response[
+                                dk_reasons$id == "nonideol"][1])
+                            "dk-quick-selected" else "")),
+                      actionButton("btn_dk_topics_different",
+                        dk_reasons$label[dk_reasons$id == "topics_different"][1],
+                        class = paste("placement-dk-quick-btn btn",
+                          if (isTRUE(is_dk_quick) &&
+                              resp == dk_reasons$response[
+                                dk_reasons$id == "topics_different"][1])
+                            "dk-quick-selected" else ""))
+                    ),
+                    div(class = "placement-dk-other-label", "Other reason"),
                     textAreaInput("dk_text", label = NULL,
-                                  value       = dk_saved_text,
-                                  placeholder = "Briefly explain why (optional)…",
+                                  value       = if (is_dk_quick) "" else dk_saved_text,
+                                  placeholder = "Briefly explain another reason…",
                                   rows        = 2,
                                   width       = "100%"),
                     actionButton("btn_dk_submit", "Submit Don't Know",
-                                 class = "placement-dk-submit btn")
+                                 class = "placement-dk-submit btn"),
+                    actionButton("btn_dk_cancel", "Cancel",
+                                 class = "placement-dk-cancel btn")
                   )
                 }
               )
@@ -1967,7 +2034,7 @@ server <- function(input, output, session) {
       removeModal()
     })
 
-    # ---- 5-point: quick categorical DK shortcuts -------------------------
+    # ---- 5-point: nested categorical DK reasons --------------------------
     handle_dk_quick <- function(resp_value) {
       if (values$index > nrow(values$data)) return()
       rm_val <- as.logical(values$data[values$index, "reveal_mode"])
@@ -1999,19 +2066,39 @@ server <- function(input, output, session) {
       }
     }
 
+    configured_dk_response <- function(reason_id) {
+      layout <- tryCatch(
+        fromJSON(values$data[values$index, "button_layout"]),
+        error = function(e) list()
+      )
+      reasons <- get_dk_reasons(layout)
+      match <- reasons$response[reasons$id == reason_id]
+      if (length(match) != 1 || is.na(match) || !nzchar(match)) {
+        stop("Missing configured Don't Know reason: ", reason_id)
+      }
+      match
+    }
+
     observeEvent(input$btn_dk_ideol_nodiff, {
-      handle_dk_quick("Don't Know: ideological, no difference")
+      handle_dk_quick(configured_dk_response("ideol_nodiff"))
     })
     observeEvent(input$btn_dk_nonideol, {
-      handle_dk_quick("Don't Know: both non-ideological")
+      handle_dk_quick(configured_dk_response("nonideol"))
+    })
+    observeEvent(input$btn_dk_topics_different, {
+      handle_dk_quick(configured_dk_response("topics_different"))
     })
 
-    # ---- 5-point: Don't Know toggle and submit ----------------------------
+    # ---- 5-point: Don't Know gate, free text, and cancel -----------------
     observeEvent(input$btn_dk, {
       if (values$index > nrow(values$data)) return()
       rm_val <- as.logical(values$data[values$index, "reveal_mode"])
       if (!is.na(rm_val) && rm_val) return()
       values$show_dk_input <- TRUE
+    })
+
+    observeEvent(input$btn_dk_cancel, {
+      values$show_dk_input <- FALSE
     })
 
     observeEvent(input$btn_dk_submit, {
@@ -2077,8 +2164,12 @@ server <- function(input, output, session) {
         else if (e.key === '2') $('#btn_2').click();
         else if (e.key === '3') $('#btn_3').click();
         else if (e.key === '4') $('#btn_4').click();
-        else if (e.key === '5') { if ($('#btn_dk_ideol_nodiff').length) $('#btn_dk_ideol_nodiff').click(); }
+        else if (e.key === '5') {
+          if ($('#btn_dk').length) $('#btn_dk').click();
+          else if ($('#btn_dk_ideol_nodiff').length) $('#btn_dk_ideol_nodiff').click();
+        }
         else if (e.key === '6') { if ($('#btn_dk_nonideol').length) $('#btn_dk_nonideol').click(); }
+        else if (e.key === '7') { if ($('#btn_dk_topics_different').length) $('#btn_dk_topics_different').click(); }
         else if (e.key === 'f') $('#flagButton').click();
         else if (e.key === 'ArrowRight') $('#nextButton').click();
         else if (e.key === 'ArrowLeft')  $('#backButton').click();
